@@ -1,0 +1,81 @@
+# 边缘检测盒 — 构建上下文指向 YOLO_CORE（默认 ../yolo-demo）
+# 用法：复制 env.example 为 .env，在 edge-ai-box 目录执行 docker compose up -d --build
+
+services:
+  data-server:
+    build:
+      context: ${YOLO_CORE:-../yolo-demo}
+      dockerfile: 部署文件-cpu/Dockerfile.data-server
+    container_name: edge-data-server
+    volumes:
+      - ${YOLO_CORE:-../yolo-demo}/models:/app/models
+      - ${YOLO_CORE:-../yolo-demo}/storage:/app/storage
+      - ${YOLO_CORE:-../yolo-demo}/uploads:/app/uploads
+    ports:
+      - "8001:8001"
+    environment:
+      - DEPLOY_MODE=edge
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:admin123@postgres:5432/yolo}
+      - DETECT_SERVER_URL=http://detect-server:8000
+    depends_on:
+      - postgres
+      - detect-server
+    restart: unless-stopped
+    networks:
+      - edge-net
+
+  detect-server:
+    build:
+      context: ${YOLO_CORE:-../yolo-demo}
+      dockerfile: 部署文件-cpu/Dockerfile.detect-server
+    container_name: edge-detect-server
+    volumes:
+      - ${YOLO_CORE:-../yolo-demo}/models:/app/models
+      - ${YOLO_CORE:-../yolo-demo}/storage:/app/storage
+      - ${YOLO_CORE:-../yolo-demo}/uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    environment:
+      - DEPLOY_MODE=edge
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:admin123@postgres:5432/yolo}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - edge-net
+
+  frontend:
+    build:
+      context: ${YOLO_CLIENT_DEMO:-..}
+      dockerfile: edge-ai-box/Dockerfile.frontend
+      args:
+        VITE_DEPLOY_MODE: edge
+    container_name: edge-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - detect-server
+      - data-server
+    restart: unless-stopped
+    networks:
+      - edge-net
+
+  postgres:
+    image: postgres:14
+    container_name: edge-postgres
+    volumes:
+      - edge-postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=admin123
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=yolo
+    restart: unless-stopped
+    networks:
+      - edge-net
+
+networks:
+  edge-net:
+    driver: bridge
+
+volumes:
+  edge-postgres-data:
