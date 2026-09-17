@@ -1,0 +1,142 @@
+/* 全局样式 - 解决对话框中下拉框层级问题 */
+
+/* Element Plus 对话框和下拉框的z-index层级管理 */
+.el-dialog__wrapper {
+  z-index: 999999 !important;
+}
+
+.el-overlay {
+  z-index: 999998 !important;
+}
+
+/* 确保下拉框和其他弹出层在对话框之上 */
+.el-select-dropdown,
+.el-popper,
+.el-picker-panel,
+.el-tooltip__popper,
+.el-popover,
+.el-dropdown-menu,
+.el-date-picker,
+.el-time-picker {
+  z-index: 999999 !important;
+}
+
+/* 对话框内的弹出层应该有更高的优先级 */
+.el-dialog .el-select-dropdown,
+.el-dialog .el-popper,
+.el-dialog .el-picker-panel,
+.el-dialog .el-tooltip__popper,
+.el-dialog .el-popover,
+.el-dialog .el-dropdown-menu,
+.el-dialog .el-date-picker,
+.el-dialog .el-time-picker {
+  z-index: 999999 !important;
+}
+
+/* 嵌套对话框的特殊处理 */
+.el-dialog.is-top .el-select-dropdown,
+.el-dialog.is-top .el-popper,
+.el-dialog.is-top .el-picker-panel {
+  z-index: 999999 !important;
+}
+
+/* 特殊类名的高优先级处理 */
+.edit-dialog-select,
+.high-priority-popper {
+  z-index: 999999 !important;
+}
+
+/* 确保loading遮罩层也有合适的层级 */
+.el-loading-mask {
+  z-index: 999998 !important;
+}
+
+.el-dialog .el-loading-mask {
+  z-index: 999999 !important;
+}
+
+/* 消息提示的层级保证 */
+.el-message,
+.el-notification,
+.el-message-box__wrapper {
+  z-index: 999999 !important;
+}
+
+/* el-image 大图预览需高于所有 dialog 遮罩 */
+.el-image-viewer__wrapper {
+  z-index: 1000000 !important;
+}
+
+.el-image-viewer__mask {
+  cursor: zoom-out;
+}
+
+/* 强制覆盖所有Element Plus弹出层 - 最高优先级 */
+body .el-select-dropdown,
+body .el-popper,
+body .el-picker-panel,
+body .el-tooltip__popper,
+body .el-popover,
+body .el-dropdown-menu,
+body .el-date-picker,
+body .el-time-picker {
+  z-index: 999999 !important;
+}
+
+/* 高优先级对话框样式 - 确保不被菜单和头部遮挡 */
+.high-priority-dialog {
+  z-index: 999999 !important;
+}
+
+.high-priority-dialog .el-dialog__wrapper {
+  z-index: 999999 !important;
+}
+
+.high-priority-dialog .el-overlay {
+  z-index: 999998 !important;
+}
+
+/* 确保高优先级对话框内的所有弹出层都有最高层级 */
+.high-priority-dialog .el-select-dropdown,
+.high-priority-dialog .el-popper,
+.high-priority-dialog .el-picker-panel,
+.high-priority-dialog .el-tooltip__popper,
+.high-priority-dialog .el-popover,
+.high-priority-dialog .el-dropdown-menu,
+.high-priority-dialog .el-date-picker,
+.high-priority-dialog .el-time-picker {
+  z-index: 999999 !important;
+}
+
+.high-priority-dialog .el-time-picker {
+  z-index: 999999 !important;
+}
+
+.el-overlay.heatmap-display-config-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+body > .el-overlay:not(.el-message-box__overlay) {
+  position: fixed !important;
+  inset: 0 !important;
+}
+
+.heatmap-display-config-dialog.el-dialog {
+  max-width: calc(100vw - 32px);
+  margin: auto;
+}
+
+.heatmap-display-config-dialog .el-dialog__body {
+  max-height: min(72vh, calc(100vh - 180px));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* teleported 到 body 的下拉层需高于高优先级弹窗 */
+.el-select-dropdown.el-popper,
+.el-popper.el-select__popper {
+  z-index: 1000000 !important;
+} 

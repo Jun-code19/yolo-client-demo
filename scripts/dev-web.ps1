@@ -1,4 +1,4 @@
-$Core = if ($env:YOLO_CORE) { $env:YOLO_CORE } else { Join-Path $PSScriptRoot "..\..\yolo-demo" }
-$Web = Join-Path (Resolve-Path $Core).Path "yolo-client"
+$Web = Join-Path $PSScriptRoot "..\web"
 Set-Location $Web
-npm run dev:edge
+Write-Host "Edge Web -> $Web"
+npm run dev

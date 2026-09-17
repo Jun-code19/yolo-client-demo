@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/fangte_white.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>边缘 AI 检测盒 · 使用说明</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.65; color: #303133; max-width: 920px; margin: 0 auto; padding: 24px 20px 48px; }
+    h1 { color: #409eff; font-size: 1.75rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #909399; margin-bottom: 2rem; }
+    h2 { margin-top: 2rem; padding-bottom: 0.35rem; border-bottom: 2px solid #ecf5ff; color: #303133; font-size: 1.25rem; }
+    h3 { margin-top: 1.25rem; font-size: 1.05rem; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.35rem 0; }
+    .note { background: #fdf6ec; border-left: 4px solid #e6a23c; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+    code { background: #f5f7fa; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.95rem; }
+    th, td { border: 1px solid #ebeef5; padding: 8px 10px; text-align: left; }
+    th { background: #f5f7fa; }
+    a { color: #409eff; }
+  </style>
+</head>
+<body>
+  <h1>边缘 AI 检测盒</h1>
+  <p class="subtitle">单机多路 YOLO/ONNX 检测 · 规则引擎 · 事件订阅 · 数据推送</p>
+
+  <p>本产品面向边缘部署场景，提供摄像头接入、检测任务、事件与复合告警、对外推送及系统运维能力。不包含 VLM 巡检、人群热力图、外部事件监听、分布式边缘节点纳管等功能。</p>
+
+  <h2 id="menu">1. 功能菜单</h2>
+  <table>
+    <thead><tr><th>入口</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>首页</td><td>运行概览、趋势与规则/订阅统计</td></tr>
+      <tr><td>目标检测</td><td>实时检测、检测配置、检测事件</td></tr>
+      <tr><td>规则引擎</td><td>复合规则（检测事件 + 事件订阅）</td></tr>
+      <tr><td>视频设备</td><td>摄像头 / NVR 通道管理</td></tr>
+      <tr><td>模型管理</td><td>本地 YOLO/ONNX 模型，图片/视频验证</td></tr>
+      <tr><td>推送配置</td><td>HTTP / TCP / MQTT 数据推送</td></tr>
+      <tr><td>事件订阅</td><td>摄像机智能事件订阅与入库</td></tr>
+      <tr><td>系统管理</td><td>资源状态、系统/检测日志、设备探活</td></tr>
+      <tr><td>数据大屏</td><td>顶栏入口，KPI、趋势、告警动态、最新事件</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="devices">2. 视频设备</h2>
+  <ul>
+    <li>支持 RTSP、ONVIF 等常见接入方式；设备类型为<strong>摄像头</strong>或 <strong>NVR 通道</strong>。</li>
+    <li>可为设备配置分组，供检测配置按组轮巡抽帧。</li>
+  </ul>
+
+  <h2 id="models">3. 模型管理</h2>
+  <ul>
+    <li>上传并启用本地检测模型（<code>.pt</code> / <code>.onnx</code>，RK3588 推荐 ONNX）。</li>
+    <li>使用图片验证、视频验证页签快速试跑模型效果。</li>
+  </ul>
+
+  <h2 id="detection">4. 检测配置与任务</h2>
+  <ul>
+    <li><strong>实时检测</strong>：持续拉流推理；<strong>抽帧检测</strong>：按间隔取帧。</li>
+    <li>可配置目标类别、灵敏度、生效时段、智能方案（区域/场景）、推送标签 <code>smart_scheme</code> 等。</li>
+    <li>推理链路固定为 <strong>仅 YOLO/ONNX</strong>，保存后启停任务生效。</li>
+    <li>在「检测事件」中查看、导出历史事件。</li>
+  </ul>
+
+  <h2 id="rules">5. 规则引擎</h2>
+  <ul>
+    <li>条件来源：<strong>检测事件</strong>、<strong>事件订阅</strong>；支持 AND/OR、同设备、时间窗与冷却。</li>
+    <li>「持续秒数」仅对检测事件的类别/数量或「持续不在」有效。</li>
+    <li>命中后生成复合告警，并按规则上的推送标签投递。</li>
+  </ul>
+
+  <h2 id="subscribe">6. 事件订阅</h2>
+  <ul>
+    <li>对接摄像机智能事件订阅，事件写入库并参与规则匹配。</li>
+    <li>推送标签默认 <code>subscribe_event</code>，需在推送配置中匹配相同 tag。</li>
+  </ul>
+
+  <h2 id="push">7. 数据推送</h2>
+  <ul>
+    <li>按 tag 过滤要转发的数据类型（检测、告警、设备状态、订阅事件等）。</li>
+    <li>预置标签见推送表单中的分组提示；也可自定义 tag 并与业务侧约定。</li>
+  </ul>
+
+  <h2 id="dashboard">8. 数据大屏</h2>
+  <ul>
+    <li>展示 KPI、近 7 天趋势、告警动态、设备排行、最新检测事件与抓拍。</li>
+    <li>可选配置排队/天气等外部接口（系统设置中的展板集成，若已启用）。</li>
+  </ul>
+
+  <h2 id="system">9. 系统管理</h2>
+  <h3>9.1 系统状态</h3>
+  <p>查看 CPU、内存、GPU、磁盘占用与服务实时日志。</p>
+  <h3>9.2 系统日志 / 检测日志</h3>
+  <p>按时间与操作类型查询、导出或清理历史日志。</p>
+  <h3>9.3 设备监控</h3>
+  <ul>
+    <li>配置 RTSP/TCP/HTTP 探活策略与离线判定；可选向推送器发送 <code>device_online_status</code>。</li>
+    <li>探活类型按<strong>摄像头、NVR、默认</strong>分别设置，保存后检测服务自动加载。</li>
+  </ul>
+
+  <h2 id="deploy">10. 部署提示</h2>
+  <div class="note">
+    <ul>
+      <li>Windows 开发：<code>scripts/dev-unified.ps1</code> + <code>web/npm run dev</code>（ONNX/CPU）。</li>
+      <li>RK3588 量产：<code>EDGE_INFERENCE=rknn</code> + <code>.rknn</code>，见 <code>deploy/BARE-METAL.md</code>、<code>deploy/RKNN-EXPORT.md</code>。</li>
+      <li>数据库库名 <code>edge_box</code>，与 yolo-demo 分离。</li>
+    </ul>
+  </div>
+
+  <p style="margin-top:2rem;color:#909399;font-size:0.9rem;">文档版本：edge-ai-box 精简版 · 如有疑问请联系运维或查看仓库 <code>deploy/RK3588.md</code>。</p>
+</body>
+</html>

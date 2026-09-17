@@ -1,0 +1,24 @@
+/**
+ * 各业务页顶栏主标题 / 副标题（不含 el-card 内小节标题）
+ */
+.page-header h2,
+.page-header .header-content h2,
+.page-header .header-info h2,
+.card-header .header-content h2,
+.layout-header h2,
+.profile-container .card-header h2 {
+  margin: 0 0 8px;
+  font-size: var(--edge-page-title-size);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--edge-text-primary);
+}
+
+.page-header .header-content p,
+.card-header .header-content p,
+.page-header .header-info p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--edge-text-muted);
+}

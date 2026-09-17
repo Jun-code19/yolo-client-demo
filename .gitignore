@@ -1,6 +1,14 @@
 .env
 .env.local
 *.log
-.Dockerfile.*
 .idea/
 .vscode/
+web/node_modules/
+web/dist/
+backend/**/__pycache__/
+backend/storage/*
+!backend/storage/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/models/*
+!backend/models/.gitkeep

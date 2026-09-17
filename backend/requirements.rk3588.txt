@@ -1,0 +1,28 @@
+# Python >= 3.10 (Windows dev / newer Linux). RK3588 system Python 3.8: requirements.rk3588-py38.txt
+# RK3588 / arm64: no PyTorch/Ultralytics (ASCII-only comments for Windows pip/GBK)
+# Prod: EDGE_INFERENCE=rknn + rknn_toolkit_lite2 (see deploy/RKNN-EXPORT.md)
+# Dev: EDGE_INFERENCE=onnx on Windows; same file, no torch
+fastapi==0.103.1
+uvicorn==0.22.0
+sqlalchemy==2.0.20
+pydantic==2.3.0
+python-multipart==0.0.6
+psycopg2-binary==2.9.7
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.0.1
+requests==2.31.0
+numpy==1.26.4
+pandas==2.0.3
+openpyxl==3.1.5
+xlsxwriter==3.2.3
+opencv-python-headless==4.8.1.78
+Pillow==10.0.0
+psutil==7.0.0
+paho-mqtt==2.1.0
+APScheduler==3.10.1
+websockets==12.0
+aiohttp==3.8.5
+ffmpeg-python==0.2.0
+onnx==1.17.0
+onnxruntime==1.19.2

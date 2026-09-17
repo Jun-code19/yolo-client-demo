@@ -1,0 +1,61 @@
+/**
+ * 边缘 AI 检测盒 — 统一主题（登录 / 控制台 / 展示大屏）
+ */
+:root {
+  --edge-primary: #409eff;
+  --edge-primary-dark: #2a5298;
+  --edge-primary-deeper: #1a3a5c;
+  --edge-primary-light: #66b1ff;
+  --edge-accent: #36cfc9;
+
+  --edge-success: #67c23a;
+  --edge-warning: #e6a23c;
+  --edge-danger: #f56c6c;
+
+  --edge-text-primary: #303133;
+  --edge-text-secondary: #606266;
+  --edge-text-muted: #909399;
+
+  /* 业务页顶栏主标题（与 el-main 内各模块 page-header 一致） */
+  --edge-page-title-size: 24px;
+
+  --edge-bg-page: #eef2f7;
+  --edge-bg-content: #f5f8fc;
+  --edge-card-bg: #ffffff;
+  --edge-card-border: rgba(64, 158, 255, 0.14);
+  --edge-card-shadow: 0 8px 32px rgba(26, 58, 92, 0.1);
+  --edge-divider: #eef2f6;
+
+  --edge-sidebar-bg: linear-gradient(180deg, #0f2438 0%, #1a3a5c 55%, #234a72 100%);
+  --edge-sidebar-logo-bg: linear-gradient(135deg, #0a1828 0%, #1a3a5c 100%);
+  --edge-sidebar-text: rgba(255, 255, 255, 0.72);
+  --edge-sidebar-text-active: #ffffff;
+  --edge-sidebar-item-bg: rgba(255, 255, 255, 0.06);
+  --edge-sidebar-item-hover: rgba(64, 158, 255, 0.18);
+  --edge-sidebar-item-active: linear-gradient(135deg, #409eff 0%, #2a5298 100%);
+  --edge-sidebar-border: rgba(64, 158, 255, 0.35);
+
+  --edge-header-bg: #ffffff;
+  --edge-header-border: rgba(64, 158, 255, 0.12);
+
+  --edge-board-bg-start: #0b1424;
+  --edge-board-bg-mid: #152a4a;
+  --edge-board-bg-end: #1a3358;
+  --edge-board-panel-bg: rgba(11, 20, 36, 0.55);
+  --edge-board-panel-border: rgba(64, 158, 255, 0.28);
+  --edge-board-header-bg: rgba(10, 20, 40, 0.65);
+  --edge-board-text: #e2e8f0;
+
+  --el-color-primary: var(--edge-primary);
+  --el-color-success: var(--edge-success);
+  --el-color-warning: var(--edge-warning);
+  --el-color-danger: var(--edge-danger);
+}
+
+.edge-sidebar-menu {
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: var(--edge-sidebar-text);
+  --el-menu-hover-text-color: var(--edge-sidebar-text-active);
+  --el-menu-active-color: var(--edge-sidebar-text-active);
+  border-right: none;
+}

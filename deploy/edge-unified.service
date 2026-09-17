@@ -1,0 +1,18 @@
+[Unit]
+Description=Edge AI Box (serve_unified)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=edge
+Group=edge
+WorkingDirectory=/opt/edge-ai-box/backend
+EnvironmentFile=/opt/edge-ai-box/backend/.env
+ExecStart=/opt/edge-ai-box/backend/.venv/bin/python serve_unified.py
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
