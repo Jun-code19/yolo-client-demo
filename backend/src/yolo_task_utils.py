@@ -1,6 +1,8 @@
 """YOLO 任务类型解析、分割 mask 处理与绘制"""
 from __future__ import annotations
 
+import ast
+import json
 import logging
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -189,13 +191,60 @@ def normalize_yolo_class_names(names: Any) -> Dict[int, str]:
     return {}
 
 
+def _parse_jsonish(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text:
+        return value
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            return ast.literal_eval(text)
+        except (ValueError, SyntaxError):
+            return value
+
+
+def normalize_model_parameters(parameters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """兼容前端键值对：字符串 JSON、整段 parameters 误填等。"""
+    if not parameters:
+        return {}
+    out: Dict[str, Any] = {}
+    for key, value in parameters.items():
+        name = str(key).strip()
+        if not name:
+            continue
+        out[name] = _parse_jsonish(value)
+
+    classes = out.get("classes")
+    if isinstance(classes, dict) and set(classes.keys()) == {"classes"}:
+        inner = classes.get("classes")
+        if isinstance(inner, dict):
+            out["classes"] = inner
+
+    if not out.get("classes"):
+        for value in out.values():
+            if isinstance(value, dict) and value.get("classes") is not None:
+                out["classes"] = value["classes"]
+                break
+
+    return out
+
+
 def classes_from_parameters(parameters: Optional[Dict[str, Any]]) -> Dict[int, str]:
+    parameters = normalize_model_parameters(parameters)
     if not parameters:
         return {}
     raw = parameters.get("classes")
-    if not raw:
+    if raw is None or raw == "":
         return {}
+    raw = _parse_jsonish(raw)
     if isinstance(raw, dict):
+        if set(raw.keys()) == {"classes"}:
+            raw = raw.get("classes") or {}
+        if not isinstance(raw, dict):
+            return {}
         return {int(k): str(v) for k, v in raw.items()}
     if isinstance(raw, list):
         return {i: str(n) for i, n in enumerate(raw)}
@@ -381,6 +430,7 @@ def load_yolo_model_classes(
     from src.env_loader import configure_ultralytics_env
 
     configure_ultralytics_env()
+    parameters = normalize_model_parameters(parameters)
 
     abs_path = _resolve_model_path(file_path)
     _require_ultralytics_for_task(models_type)

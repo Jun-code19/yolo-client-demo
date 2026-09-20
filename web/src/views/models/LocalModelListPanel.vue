@@ -83,8 +83,9 @@
 
     <!-- 上传模型对话框 -->
     <el-dialog v-model="uploadDialogVisible" title="上传模型" width="30%" top="5vh" :z-index="999999" append-to-body
-      class="high-priority-dialog">
-      <el-form :model="uploadForm" label-width="80px" :rules="uploadRules" ref="uploadFormRef">
+      class="high-priority-dialog upload-model-dialog">
+      <el-form :model="uploadForm" label-width="80px" :rules="uploadRules" ref="uploadFormRef"
+        class="upload-model-form">
         <el-form-item label="模型名称" prop="modelName">
           <el-input v-model="uploadForm.modelName" placeholder="请输入模型名称"></el-input>
         </el-form-item>
@@ -105,14 +106,16 @@
           <el-upload class="model-upload" drag action="#" :auto-upload="false" :limit="1"
             :accept="uploadAcceptAttr" :on-change="handleFileChange" :on-exceed="handleExceed"
             :on-remove="handleRemove" :file-list="uploadForm.fileList" :before-upload="beforeUpload">
-            <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-            <div class="el-upload__text">
-              拖拽文件到此处或<em>点击上传</em>
+            <div class="upload-dragger-inner">
+              <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+              <div class="el-upload__text">
+                拖拽文件到此处或<em>点击上传</em>
+              </div>
             </div>
             <template #tip>
               <div class="el-upload__tip">
                 允许格式：{{ uploadPolicy.extensions.join(' / ') || '.onnx / .rknn' }}（Ultralytics 导出 YOLO ONNX）<br>
-                无内置类别时，在「参数」填 JSON：<code>{"classes":{"0":"face"}}</code>；RKNN 必填 classes<br>
+                边缘 RKNN/ONNX 仅支持「目标检测」「人脸检测」。无内置类别时：参数名 <code>classes</code>，参数值如 <code>{"0":"person"}</code>；RKNN 任意类型均必填 classes<br>
                 <span style="color: #f56c6c;">单文件 ≤ 2GB；上传完成后还需「校验加载」，请稍候勿关页面</span>
               </div>
             </template>
@@ -138,23 +141,32 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="描述">
-          <el-input v-model="uploadForm.description" type="textarea" :rows="3" placeholder="请输入模型描述（可选）"></el-input>
+        <el-form-item label="备注">
+          <el-input v-model="uploadForm.description" placeholder="可选"></el-input>
         </el-form-item>
 
-        <el-form-item label="参数">
-          <el-collapse>
-            <el-collapse-item title="添加模型参数（可选）">
-              <el-form-item v-for="(param, index) in uploadForm.parameters" :key="index">
-                <div style="display: flex; margin-bottom: 10px;">
-                  <el-input v-model="param.key" placeholder="参数名" style="width: 40%; margin-right: 10px;"></el-input>
-                  <el-input v-model="param.value" placeholder="参数值" style="width: 40%; margin-right: 10px;"></el-input>
-                  <el-button type="danger" @click="removeParam(index)">删除</el-button>
-                </div>
-              </el-form-item>
-              <el-button type="primary" @click="addParam">添加参数</el-button>
-            </el-collapse-item>
-          </el-collapse>
+        <el-form-item label="模型参数" class="model-params-form-item">
+          <div class="model-params-panel">
+            <p class="model-params-hint">
+              可选。RKNN 必填 <code>classes</code>；无内置类别时在参数值填 JSON，如 <code>{"0":"person"}</code>
+            </p>
+            <div v-if="uploadForm.parameters.length" class="model-params-table">
+              <div class="model-params-row model-params-row--head">
+                <span>参数名</span>
+                <span>参数值</span>
+                <span class="col-action">操作</span>
+              </div>
+              <div v-for="(param, index) in uploadForm.parameters" :key="index" class="model-params-row">
+                <el-input v-model="param.key" placeholder="classes" clearable />
+                <el-input v-model="param.value" placeholder='{"0":"person"}' clearable />
+                <el-button link type="danger" @click="removeParam(index)">删除</el-button>
+              </div>
+            </div>
+            <div class="model-params-actions">
+              <el-button link type="primary" @click="addParam">+ 添加一行</el-button>
+              <el-button link type="primary" @click="fillClassesParamPreset">填入 classes 示例</el-button>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -249,19 +261,26 @@
           <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="请输入模型描述（可选）"></el-input>
         </el-form-item>
 
-        <el-form-item label="参数">
-          <el-collapse>
-            <el-collapse-item title="修改模型参数（可选）">
-              <el-form-item v-for="(param, index) in editForm.parameters" :key="index">
-                <div style="display: flex; margin-bottom: 10px;">
-                  <el-input v-model="param.key" placeholder="参数名" style="width: 40%; margin-right: 10px;"></el-input>
-                  <el-input v-model="param.value" placeholder="参数值" style="width: 40%; margin-right: 10px;"></el-input>
-                  <el-button type="danger" @click="removeEditParam(index)">删除</el-button>
-                </div>
-              </el-form-item>
-              <el-button type="primary" @click="addEditParam">添加参数</el-button>
-            </el-collapse-item>
-          </el-collapse>
+        <el-form-item label="模型参数" class="model-params-form-item">
+          <div class="model-params-panel">
+            <p class="model-params-hint">修改自定义键值；参数值支持 JSON 字符串</p>
+            <div v-if="editForm.parameters.length" class="model-params-table">
+              <div class="model-params-row model-params-row--head">
+                <span>参数名</span>
+                <span>参数值</span>
+                <span class="col-action">操作</span>
+              </div>
+              <div v-for="(param, index) in editForm.parameters" :key="index" class="model-params-row">
+                <el-input v-model="param.key" placeholder="classes" clearable />
+                <el-input v-model="param.value" placeholder='{"0":"person"}' clearable />
+                <el-button link type="danger" @click="removeEditParam(index)">删除</el-button>
+              </div>
+            </div>
+            <div class="model-params-actions">
+              <el-button link type="primary" @click="addEditParam">+ 添加一行</el-button>
+              <el-button link type="primary" @click="fillEditClassesParamPreset">填入 classes 示例</el-button>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -329,21 +348,38 @@ const MODEL_TYPE_HINTS = {
   other: '仅 ultralytics 开发环境。'
 }
 
+const MODEL_TYPE_ORDER = [
+  'object_detection',
+  'face',
+  'segmentation',
+  'keypoint',
+  'pose',
+  'other'
+]
+
 const defaultUploadPolicy = () => ({
   inference_backend: 'onnx',
   extensions: ['.onnx', '.rknn'],
   model_types: ['object_detection', 'face'],
-  hint: '边缘盒仅支持 ONNX / RKNN 与目标检测、人脸检测。'
+  hint: '边缘盒 ONNX/RKNN 仅支持「目标检测」「人脸检测」两种类型。'
 })
 
 const uploadPolicy = ref(defaultUploadPolicy())
 
-const modelTypeOptions = computed(() =>
-  (uploadPolicy.value.model_types || []).map((value) => ({
+const modelTypeOptions = computed(() => {
+  const allowed = new Set(uploadPolicy.value.model_types || [])
+  return MODEL_TYPE_ORDER.filter((value) => allowed.has(value)).map((value) => ({
     value,
     label: MODEL_TYPE_LABELS[value] || value
   }))
-)
+})
+
+/** 上传默认类型：优先目标检测，避免后端 sorted 把 face 排到第一位 */
+const defaultUploadModelType = () => {
+  const allowed = uploadPolicy.value.model_types || []
+  if (allowed.includes('object_detection')) return 'object_detection'
+  return allowed[0] || ''
+}
 
 const uploadAcceptAttr = computed(() =>
   (uploadPolicy.value.extensions || ['.onnx', '.rknn']).join(',')
@@ -372,6 +408,34 @@ const formatApiDetail = (detail) => {
   }
   if (typeof detail === 'object') return detail.msg || detail.message || JSON.stringify(detail)
   return String(detail)
+}
+
+const buildUploadParameters = (rows) => {
+  const params = {}
+  for (const p of rows || []) {
+    const key = String(p.key || '').trim()
+    const rawValue = String(p.value ?? '').trim()
+    if (!key || !rawValue) continue
+    try {
+      params[key] = JSON.parse(rawValue)
+    } catch {
+      params[key] = rawValue
+    }
+  }
+  const classes = params.classes
+  if (classes && typeof classes === 'object' && classes.classes && typeof classes.classes === 'object') {
+    params.classes = classes.classes
+  }
+  return params
+}
+
+const hasModelClassesParam = (params) => {
+  const classes = params?.classes
+  if (!classes) return false
+  if (typeof classes === 'string') return classes.trim().length > 0
+  if (Array.isArray(classes)) return classes.length > 0
+  if (typeof classes === 'object') return Object.keys(classes).length > 0
+  return false
 }
 
 const uploadModelTypeHint = computed(() => MODEL_TYPE_HINTS[uploadForm.value.modelType] || '')
@@ -522,7 +586,7 @@ onMounted(() => {
 const showUploadDialog = () => {
   uploadForm.value = {
     modelName: '',
-    modelType: uploadPolicy.value.model_types?.[0] || 'object_detection',
+    modelType: defaultUploadModelType(),
     description: '',
     modelFile: null,
     fileList: [],
@@ -582,9 +646,24 @@ const handleRemove = () => {
   uploadForm.value.modelFile = null
 }
 
+const CLASSES_PARAM_PRESET = { key: 'classes', value: '{"0":"person"}' }
+
+const upsertClassesParam = (parameters) => {
+  const row = parameters.find((p) => String(p.key || '').trim() === 'classes')
+  if (row) {
+    row.value = CLASSES_PARAM_PRESET.value
+    return
+  }
+  parameters.push({ ...CLASSES_PARAM_PRESET })
+}
+
 // 添加参数
 const addParam = () => {
   uploadForm.value.parameters.push({ key: '', value: '' })
+}
+
+const fillClassesParamPreset = () => {
+  upsertClassesParam(uploadForm.value.parameters)
 }
 
 // 移除参数
@@ -606,6 +685,19 @@ const uploadModel = async () => {
 
     // 再次检查文件大小
     if (!beforeUpload(uploadForm.value.modelFile)) {
+      return
+    }
+
+    const uploadParams = buildUploadParameters(uploadForm.value.parameters)
+    const fileName = uploadForm.value.modelFile.name || ''
+    const fileExt = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
+    const needsClasses =
+      fileExt === '.rknn' ||
+      (fileExt === '.onnx' && uploadForm.value.modelType === 'face')
+    if (needsClasses && !hasModelClassesParam(uploadParams)) {
+      ElMessage.error(
+        '缺少 classes 参数：请先点「添加参数」，参数名填 classes，参数值填 {"0":"face"}（须英文双引号）'
+      )
       return
     }
 
@@ -636,15 +728,8 @@ const uploadModel = async () => {
         formData.append('description', uploadForm.value.description)
       }
 
-      // 处理自定义参数
-      if (uploadForm.value.parameters.length > 0) {
-        const params = {}
-        uploadForm.value.parameters.forEach(p => {
-          if (p.key && p.value) {
-            params[p.key] = p.value
-          }
-        })
-        formData.append('parameters', JSON.stringify(params))
+      if (Object.keys(uploadParams).length > 0) {
+        formData.append('parameters', JSON.stringify(uploadParams))
       }
 
       // 创建上传控制器
@@ -841,6 +926,10 @@ const formatParametersForEdit = (params) => {
 // 添加编辑参数
 const addEditParam = () => {
   editForm.value.parameters.push({ key: '', value: '' })
+}
+
+const fillEditClassesParamPreset = () => {
+  upsertClassesParam(editForm.value.parameters)
 }
 
 // 移除编辑参数
@@ -1041,8 +1130,92 @@ const formatParameters = (params) => {
   flex-wrap: wrap;
 }
 
+.upload-model-form :deep(.el-form-item) {
+  margin-bottom: 12px;
+}
+
 .model-upload {
   width: 100%;
+}
+
+.model-upload :deep(.el-upload) {
+  width: 100%;
+}
+
+.model-upload :deep(.el-upload-dragger) {
+  width: 100%;
+  min-height: 52px;
+  height: auto;
+  padding: 10px 16px;
+}
+
+.model-upload .upload-dragger-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.model-upload :deep(.el-icon--upload) {
+  margin-bottom: 0;
+  font-size: 40px;
+}
+
+.model-upload :deep(.el-upload-list) {
+  margin-top: 6px;
+}
+
+.model-params-form-item :deep(.el-form-item__content) {
+  line-height: normal;
+}
+
+.model-params-panel {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-blank);
+  box-sizing: border-box;
+}
+
+.model-params-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.model-params-hint code {
+  font-size: 12px;
+}
+
+.model-params-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-params-row {
+  display: grid;
+  grid-template-columns: minmax(88px, 28%) 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.model-params-row--head {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.model-params-row--head .col-action {
+  text-align: center;
+}
+
+.model-params-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
 }
 
 .no-data {

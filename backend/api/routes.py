@@ -776,14 +776,17 @@ def get_model_upload_policy():
 
     backend = get_inference_backend()
     exts = sorted(allowed_model_extensions())
-    types = sorted(allowed_model_types())
+    allowed = allowed_model_types()
+    type_order = ("object_detection", "face", "segmentation", "keypoint", "pose", "other")
+    types = [t for t in type_order if t in allowed]
+    types.extend(sorted(allowed - set(types)))
     if backend == "rknn":
         hint = (
-            "NPU 模式：请上传 .rknn，参数 JSON 必填 classes。"
-            "转换见部署文档 RKNN-EXPORT.md。"
+            "NPU 模式：请上传 .rknn；模型类型仅「目标检测」「人脸检测」。"
+            "参数 classes 必填，见 RKNN-EXPORT.md。"
         )
     elif backend == "onnx":
-        hint = "边缘盒 ONNX；任务类型仅「目标检测」「人脸检测」。无内置类别时在参数中填写 classes。"
+        hint = "边缘盒 ONNX；模型类型仅「目标检测」「人脸检测」。无内置类别时在参数中填写 classes。"
     else:
         hint = "开发模式支持 .pt 等；边缘部署请使用 ONNX 并设置 EDGE_INFERENCE=onnx。"
     return {
@@ -971,6 +974,10 @@ async def upload_model(
             models_params = json.loads(parameters)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid parameters JSON")
+
+    from src.yolo_task_utils import normalize_model_parameters
+
+    models_params = normalize_model_parameters(models_params)
     
     try:
         classes = _load_uploaded_model_classes(
