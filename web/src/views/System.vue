@@ -11,105 +11,138 @@
     </div>
 
     <!-- 系统状态面板 -->
-    <div v-if="activeTab === 'status'">
-      <!-- <div class="status-header">
+    <div v-if="activeTab === 'status'" class="status-panel" v-loading="statusLoading">
+      <div class="status-header">
+        <span class="status-hint">每 5 秒自动刷新 · 当前时间以服务端为准</span>
         <el-button type="primary" @click="refreshStatus">
-          <el-icon>
-            <Refresh />
-          </el-icon>
+          <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
-      </div> -->
+      </div>
 
-      <el-row :gutter="20">
-        <el-col :span="10">
-          <el-card class="status-card">
-            <template #header>
-              <div class="card-header">
-                <span>系统资源</span>
-                <el-tag type="success" v-if="systemStatus.status === 'normal'">运行正常</el-tag>
-                <el-tag type="warning" v-else-if="systemStatus.status === 'warning'">需要注意</el-tag>
-                <el-tag type="danger" v-else>异常</el-tag>
+      <el-card class="status-card info-card">
+        <template #header>
+          <div class="card-header">
+            <span>盒子信息</span>
+            <el-tag type="success" v-if="systemStatus.status === 'normal'">运行正常</el-tag>
+            <el-tag type="warning" v-else-if="systemStatus.status === 'warning'">需要注意</el-tag>
+            <el-tag type="danger" v-else>异常</el-tag>
+          </div>
+        </template>
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="主机名">{{ systemInfo.hostname || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="应用版本">
+            {{ systemInfo.app_name }} {{ systemInfo.app_version }}
+          </el-descriptions-item>
+          <el-descriptions-item label="推理后端">
+            <el-tag size="small" type="info">{{ inferenceLabel }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="当前时间">{{ systemInfo.current_time || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="开机时间">{{ systemInfo.boot_time || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="运行时长">{{ systemInfo.uptime_text || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="系统">{{ systemInfo.platform || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="架构">{{ systemInfo.architecture || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="Python">{{ systemInfo.python_version || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="已启用检测任务" :span="3">
+            {{ detectionInfo.enabled_configs }} 个
+          </el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
+      <el-card class="status-card">
+        <template #header>
+          <div class="card-header">
+            <span>系统资源</span>
+          </div>
+        </template>
+        <el-row :gutter="16" class="resource-grid">
+          <el-col :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>CPU</span>
+                <span>{{ systemStatus.cpu.percent }}%</span>
               </div>
-            </template>
-
-            <div class="resource-list">
-              <div class="resource-item">
-                <div class="item-header">
-                  <span>CPU 使用率</span>
-                  <span>{{ systemStatus.cpu.percent }}%</span>
-                </div>
-                <el-progress :percentage="systemStatus.cpu.percent" :status="getCpuStatus(systemStatus.cpu.percent)" />
-                <div class="item-footer">
-                  <span>总核数: {{ systemStatus.cpu.total }}</span>
-                  <span>已使用: {{ systemStatus.cpu.used }} 核</span>
-                </div>
-              </div>
-
-              <div class="resource-item">
-                <div class="item-header">
-                  <span>内存使用率</span>
-                  <span>{{ systemStatus.memory.percent }}%</span>
-                </div>
-                <el-progress :percentage="systemStatus.memory.percent" :status="getMemoryStatus(systemStatus.memory.percent)" />
-                <div class="item-footer">
-                  <span>总内存: {{ systemStatus.memory.total }} GB</span>
-                  <span>已使用: {{ systemStatus.memory.used }} GB</span>
-                </div>
-              </div>
-
-              <div class="resource-item">
-                <div class="item-header">
-                  <span>GPU 使用率</span>
-                  <span>{{ systemStatus.gpu.percent }}%</span>
-                </div>
-                <el-progress :percentage="systemStatus.gpu.percent" :status="getGpuStatus(systemStatus.gpu.percent)" />
-                <div class="item-footer">
-                  <span>总显存: {{ systemStatus.gpu.total }} GB</span>
-                  <span>已使用: {{ systemStatus.gpu.used }} GB</span>
-                </div>
-              </div>
-
-              <div class="resource-item">
-                <div class="item-header">
-                  <span>磁盘使用率</span>
-                  <span>{{ systemStatus.disk.percent }}%</span>
-                </div>
-                <el-progress :percentage="systemStatus.disk.percent" :status="getDiskStatus(systemStatus.disk.percent)" />
-                <div class="item-footer">
-                  <span>总磁盘: {{ systemStatus.disk.total }} GB</span>
-                  <span>已使用: {{ systemStatus.disk.used }} GB</span>
-                </div>
+              <el-progress :percentage="systemStatus.cpu.percent" :status="getCpuStatus(systemStatus.cpu.percent)" />
+              <div class="item-footer">
+                <span>逻辑核: {{ systemStatus.cpu.total }}</span>
+                <span>约占用: {{ systemStatus.cpu.used }} 核</span>
               </div>
             </div>
-          </el-card>
-        </el-col>
-        <el-col :span="14">
-          <el-card class="status-card">
-            <template #header>
-              <div class="card-header">
-                <span>实时日志</span>
-                <el-button type="primary" link @click="clearLogs">
-                  清空日志
-                </el-button>
+          </el-col>
+          <el-col :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>内存</span>
+                <span>{{ systemStatus.memory.percent }}%</span>
               </div>
-            </template>
-
-            <el-table :data="logs" style="width: 100%" height="60vh">
-              <el-table-column prop="time" label="时间" width="180" />
-              <el-table-column prop="level" label="级别" width="100">
-                <template #default="{ row }">
-                  <el-tag :type="getLogLevelType(row.level)" size="small">
-                    {{ row.level }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="message" label="内容" />
-            </el-table>
-          </el-card>
-        </el-col>
-      </el-row>
-
+              <el-progress :percentage="systemStatus.memory.percent" :status="getMemoryStatus(systemStatus.memory.percent)" />
+              <div class="item-footer">
+                <span>总计: {{ systemStatus.memory.total }} GB</span>
+                <span>已用: {{ systemStatus.memory.used }} GB</span>
+              </div>
+            </div>
+          </el-col>
+          <el-col v-if="showNpu" :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>NPU</span>
+                <span v-if="npuInfo.load_percent != null">{{ npuInfo.load_percent }}%</span>
+                <span v-else class="npu-idle">{{ npuInfo.status_text }}</span>
+              </div>
+              <el-progress
+                v-if="npuInfo.load_percent != null"
+                :percentage="npuInfo.load_percent"
+                :status="getNpuStatus(npuInfo.load_percent)"
+              />
+              <el-progress v-else :percentage="0" :show-text="false" />
+              <div class="item-footer npu-footer">
+                <span>驱动: {{ npuInfo.driver_version || '—' }}</span>
+                <span v-if="npuInfo.load_readable">{{ npuInfo.load_readable }}</span>
+                <span v-else>{{ npuInfo.status_text }}</span>
+              </div>
+            </div>
+          </el-col>
+          <el-col v-if="showGpu" :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>GPU</span>
+                <span>{{ systemStatus.gpu.percent }}%</span>
+              </div>
+              <el-progress :percentage="systemStatus.gpu.percent" :status="getGpuStatus(systemStatus.gpu.percent)" />
+              <div class="item-footer">
+                <span>显存: {{ systemStatus.gpu.total }} GB</span>
+                <span>已用: {{ systemStatus.gpu.used }} GB</span>
+              </div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>系统盘</span>
+                <span>{{ systemStatus.disk.percent }}%</span>
+              </div>
+              <el-progress :percentage="systemStatus.disk.percent" :status="getDiskStatus(systemStatus.disk.percent)" />
+              <div class="item-footer">
+                <span>{{ systemStatus.disk.path || '/' }}</span>
+                <span>{{ systemStatus.disk.used }} / {{ systemStatus.disk.total }} GB</span>
+              </div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="12" :lg="8">
+            <div class="resource-item">
+              <div class="item-header">
+                <span>应用目录</span>
+                <span>{{ dataStorage.percent }}%</span>
+              </div>
+              <el-progress :percentage="dataStorage.percent" :status="getDiskStatus(dataStorage.percent)" />
+              <div class="item-footer">
+                <span>{{ dataStorage.path || 'backend' }}</span>
+                <span>{{ dataStorage.used }} / {{ dataStorage.total }} GB</span>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+      </el-card>
     </div>
 
     <!-- 系统日志面板 -->
@@ -328,7 +361,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Refresh, Download, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -351,57 +384,91 @@ const syncTabFromRoute = () => {
 
 watch(() => route.query.tab, syncTabFromRoute)
 
+const defaultDisk = () => ({ path: '', percent: 0, total: 0, used: 0, free: 0 })
+
 // 系统状态数据
+const statusLoading = ref(false)
 const systemStatus = ref({
   status: 'normal',
   cpu: { percent: 0, total: 0, used: 0 },
   memory: { percent: 0, total: 0, used: 0 },
   gpu: { percent: 0, total: 0, used: 0 },
-  disk: { percent: 0, total: 0, used: 0 }
+  disk: defaultDisk()
+})
+const systemInfo = ref({
+  hostname: '',
+  platform: '',
+  architecture: '',
+  python_version: '',
+  app_name: 'edge-ai-box',
+  app_version: '',
+  edge_inference: '',
+  current_time: '',
+  boot_time: '',
+  uptime_text: ''
+})
+const npuInfo = ref({
+  available: false,
+  backend: '',
+  driver_version: '',
+  load_percent: null,
+  load_readable: '',
+  load_error: '',
+  status_text: ''
+})
+const dataStorage = ref(defaultDisk())
+const detectionInfo = ref({ enabled_configs: 0 })
+
+const inferenceLabel = computed(() => {
+  const b = (systemInfo.value.edge_inference || '').toLowerCase()
+  if (b === 'rknn') return 'RKNN（NPU）'
+  if (b === 'ultralytics') return 'Ultralytics（GPU/CPU）'
+  if (b === 'onnx') return 'ONNX（CPU）'
+  return b || '—'
 })
 
-// 服务列表
-const services = ref([
-  { name: '检测服务', status: 'stopped' },
-  { name: '数据服务', status: 'stopped' },
-  { name: '数据库服务', status: 'stopped' },
-  { name: '网页服务', status: 'stopped' }
-])
+const showNpu = computed(() => {
+  const b = (systemInfo.value.edge_inference || '').toLowerCase()
+  return b === 'rknn' || npuInfo.value.available
+})
 
-// 系统日志
-const logs = ref([])
+const showGpu = computed(() => {
+  const g = systemStatus.value.gpu
+  return (g.total || 0) > 0 || (g.percent || 0) > 0
+})
 
 // 检测日志
 const detectionLogs = ref([])
 
 // 刷新状态
-const refreshStatus = async () => {
+const refreshStatus = async (silent = false) => {
+  if (!silent) {
+    statusLoading.value = true
+  }
   try {
     const response = await systemLogApi.getSystemStatus()
 
     if (response.status === 200) {
-      // 更新系统状态
+      const d = response.data
       systemStatus.value = {
-        status: response.data.status,
-        cpu: response.data.cpu,
-        memory: response.data.memory,
-        gpu: response.data.gpu,
-        disk: response.data.disk
+        status: d.status || 'normal',
+        cpu: d.cpu || systemStatus.value.cpu,
+        memory: d.memory || systemStatus.value.memory,
+        gpu: d.gpu || systemStatus.value.gpu,
+        disk: d.disk || defaultDisk()
       }
-
-      // 更新服务状态
-      if (response.data.services && response.data.services.length > 0) {
-        services.value = response.data.services
+      if (d.system) {
+        systemInfo.value = { ...systemInfo.value, ...d.system }
       }
-
-      // 更新日志
-      if (response.data.logs && response.data.logs.length > 0) {
-        logs.value = response.data.logs
+      if (d.npu) {
+        npuInfo.value = { ...npuInfo.value, ...d.npu }
       }
-
-      // 不显示通知，避免频繁刷新时打扰用户
-    } else {
-      // console.error('获取系统状态失败:', response)
+      if (d.data_storage) {
+        dataStorage.value = d.data_storage
+      }
+      if (d.detection) {
+        detectionInfo.value = d.detection
+      }
     }
   } catch (error) {
     const detail = error.response?.data?.detail
@@ -409,6 +476,10 @@ const refreshStatus = async () => {
       ? detail
       : (detail ? JSON.stringify(detail) : error.message)
     ElMessage.error(msg ? `获取系统状态失败：${msg}` : '获取系统状态失败，请检查服务是否已启动')
+  } finally {
+    if (!silent) {
+      statusLoading.value = false
+    }
   }
 }
 
@@ -417,43 +488,7 @@ const getCpuStatus = (value) => value > 90 ? 'exception' : value > 70 ? 'warning
 const getMemoryStatus = (value) => value > 90 ? 'exception' : value > 80 ? 'warning' : 'success'
 const getGpuStatus = (value) => value > 90 ? 'exception' : value > 70 ? 'warning' : 'success'
 const getDiskStatus = (value) => value > 90 ? 'exception' : value > 80 ? 'warning' : 'success'
-
-// 日志级别标签类型
-const getLogLevelType = (level) => {
-  const typeMap = {
-    INFO: 'info',
-    WARNING: 'warning',
-    ERROR: 'danger',
-    DEBUG: ''
-  }
-  return typeMap[level]
-}
-
-// 日志操作
-const addLog = (level, message) => {
-  logs.value.unshift({
-    time: new Date().toLocaleString(),
-    level,
-    message
-  })
-}
-
-const clearLogs = async () => {
-  const result = await ElMessageBox.confirm(
-    '确定要清空所有日志吗？',
-    '警告',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
-  ).catch(() => false)
-
-  if (result) {
-    logs.value = []
-    addLog('INFO', '日志已清空')
-  }
-}
+const getNpuStatus = (value) => value > 90 ? 'exception' : value > 70 ? 'warning' : 'success'
 
 // 定时刷新
 let refreshInterval
@@ -917,8 +952,8 @@ const confirmClearDetectionLog = async () => {
 // 页面初始化
 onMounted(() => {
   syncTabFromRoute()
-  refreshStatus()
-  refreshInterval = setInterval(refreshStatus, 5000)
+  refreshStatus(false)
+  refreshInterval = setInterval(() => refreshStatus(true), 5000)
 
   // 加载系统日志
   loadLogData()
@@ -966,10 +1001,39 @@ onUnmounted(() => {
   margin-bottom: 10px;
 }
 
+.status-panel {
+  max-width: 1200px;
+}
+
 .status-header {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.status-hint {
+  font-size: 13px;
+  color: #909399;
+}
+
+.info-card :deep(.el-descriptions__label) {
+  width: 110px;
+}
+
+.resource-grid .el-col {
+  margin-bottom: 16px;
+}
+
+.npu-idle {
+  font-size: 12px;
+  color: #909399;
+}
+
+.npu-footer {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .status-card {

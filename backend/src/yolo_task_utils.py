@@ -251,6 +251,73 @@ def classes_from_parameters(parameters: Optional[Dict[str, Any]]) -> Dict[int, s
     return {}
 
 
+def class_names_from_detection_model(
+    models_classes: Optional[Any] = None,
+    parameters: Optional[Dict[str, Any]] = None,
+) -> Dict[int, str]:
+    """从 models_classes 或 parameters.classes 解析类别（RKNN 必填）。"""
+    names = normalize_yolo_class_names(models_classes)
+    if names:
+        return names
+    names = classes_from_parameters(parameters)
+    if names:
+        return names
+    return {0: "object"}
+
+
+def class_names_for_model_record(model: Any) -> Dict[int, str]:
+    return class_names_from_detection_model(
+        getattr(model, "models_classes", None),
+        getattr(model, "parameters", None),
+    )
+
+
+def apply_class_names_to_detector(detector: Any, class_names: Optional[Dict[int, str]]) -> Dict[int, str]:
+    """将 DB 中的类别同步到已缓存的 ONNX/RKNN 适配器（避免 nc=1 旧缓存）。"""
+    names = class_names or {0: "object"}
+    if detector is not None:
+        detector.names = names
+        if hasattr(detector, "nc"):
+            detector.nc = max(len(names), 1)
+    return names
+
+
+def resolve_class_names_for_load(
+    class_names: Optional[Dict[int, str]],
+    model_path: str,
+) -> Dict[int, str]:
+    """加载权重时合并 DB 中的 models_classes（兼容未传 class_names 的旧调用）。"""
+    names = normalize_yolo_class_names(class_names) if class_names else {}
+    if len(names) <= 1:
+        from_db = class_names_for_model_path(model_path)
+        if len(from_db) > len(names):
+            names = from_db
+    if not names:
+        names = {0: "object"}
+    return names
+
+
+def class_names_for_model_path(model_path: str) -> Dict[int, str]:
+    from src.database import DetectionModel, SessionLocal
+
+    base = os.path.basename(model_path or "")
+    if not base:
+        return {0: "object"}
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(DetectionModel)
+            .filter(DetectionModel.file_path.like(f"%{base}"))
+            .order_by(DetectionModel.upload_time.desc())
+            .first()
+        )
+        if row:
+            return class_names_for_model_record(row)
+    finally:
+        db.close()
+    return {0: "object"}
+
+
 def is_onnx_model_path(model_path: str) -> bool:
     return os.path.splitext(model_path or "")[1].lower() == ".onnx"
 
@@ -361,7 +428,8 @@ def load_detection_model(
     if get_inference_backend() == "rknn" and is_rknn_model_path(abs_path):
         from src.rknn_yolo import RknnYoloAdapter
 
-        names = class_names or {0: "object"}
+        names = resolve_class_names_for_load(class_names, abs_path)
+        logger.info("RKNN 加载类别 count=%s path=%s", len(names), abs_path)
         imgsz = int(os.getenv("RKNN_IMGSZ", "640") or 640)
         model = RknnYoloAdapter(abs_path, names, imgsz=imgsz)
         return model, "npu", True
@@ -369,9 +437,11 @@ def load_detection_model(
     use_cuda = cuda_available() and is_gpu
 
     if _is_onnx(abs_path):
-        names = class_names or class_names_from_onnx_metadata(abs_path)
-        if not names:
-            names = {0: "face"} if is_face_type(models_type) else {0: "object"}
+        names = resolve_class_names_for_load(class_names, abs_path)
+        if len(names) <= 1:
+            names = class_names_from_onnx_metadata(abs_path) or names
+        if not names or len(names) <= 1:
+            names = {0: "face"} if is_face_type(models_type) else names or {0: "object"}
         model = OnnxYoloAdapter(abs_path, names, use_cuda=use_cuda and use_ultralytics())
         infer_device = "0" if use_cuda else "cpu"
         return model, infer_device, True

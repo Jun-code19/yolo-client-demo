@@ -224,6 +224,9 @@ const loadRuntime = async () => {
     runtime.value = res.data?.data || res.data
   } catch (error) {
     runtime.value = null
+    if (error.response?.status === 401) {
+      return
+    }
     ElMessage.warning('无法获取检测服务运行状态，请确认 serve_unified 已启动')
   } finally {
     loadingRuntime.value = false
@@ -235,7 +238,9 @@ const loadAll = async () => {
   try {
     await Promise.all([loadConfig(), loadRuntime()])
   } catch (error) {
-    ElMessage.error('加载配置失败')
+    if (error.response?.status !== 401) {
+      ElMessage.error('加载配置失败')
+    }
   } finally {
     loading.value = false
   }

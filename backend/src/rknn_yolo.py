@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -16,6 +17,9 @@ from src.onnx_yolo_adapter import (
 from src.yolo_box_compat import SimpleBox, SimpleBoxes, SimpleYoloResult
 
 logger = logging.getLogger(__name__)
+
+# 进程内所有 .rknn 共用 NPU 驱动；多任务/多模型并发 inference 会互相踩内存，必须全局串行。
+_RKNN_NPU_LOCK = threading.Lock()
 
 
 def _import_rknnlite():
@@ -149,22 +153,15 @@ class RknnYoloAdapter:
             inp = self._prepare_input(im0, im)
             t1 = time.perf_counter()
 
-            outputs = self._rknn.inference(inputs=[inp])
-            if not outputs:
-                raise RuntimeError("RKNN inference 未返回输出")
-            raw = self._normalize_output(np.asarray(outputs[0]))
-            t2 = time.perf_counter()
-
-            nc = max(self.nc, 1)
-            if raw.ndim >= 2:
-                feat = raw[0] if raw.ndim == 3 else raw
-                if feat.shape[0] < feat.shape[1]:
-                    nc = max(nc, feat.shape[1] - 4)
-                else:
-                    nc = max(nc, feat.shape[0] - 4)
-            det = _postprocess_yolo_output(raw, conf, iou, max_det, nc)
-            if len(det):
-                det[:, :4] = _scale_boxes(det[:, :4], im.shape, im0.shape)
+            with _RKNN_NPU_LOCK:
+                outputs = self._rknn.inference(inputs=[inp])
+                if not outputs:
+                    raise RuntimeError("RKNN inference 未返回输出")
+                raw = np.asarray(self._normalize_output(outputs[0]), dtype=np.float32).copy()
+                t2 = time.perf_counter()
+                det = _postprocess_yolo_output(raw, conf, iou, max_det, max(self.nc, 1))
+                if len(det):
+                    det[:, :4] = _scale_boxes(det[:, :4], im.shape, im0.shape)
 
             t3 = time.perf_counter()
             boxes = [

@@ -6,8 +6,9 @@ import numpy as np
 from collections import deque
 from typing import Tuple
 import colorsys
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from datetime import datetime
+from src.cjk_font import ascii_fallback_text, load_cjk_font_pair
 from src.smart_scenarios import ScenarioProcessor, is_multi_scenario_config
 
 class ObjectTracker:
@@ -41,22 +42,8 @@ class ObjectTracker:
         self.scenario_processor = ScenarioProcessor()
         self.multi_scenario_mode = False
 
-        # 尝试加载中文字体，如果失败则使用默认字体
-        try:
-            # Windows系统中文字体路径
-            self.font_path = "C:/Windows/Fonts/simhei.ttf"  # 黑体
-            self.font = ImageFont.truetype(self.font_path, 30)
-            self.font_small = ImageFont.truetype(self.font_path, 16)
-        except:
-            try:
-                # 尝试其他常见中文字体
-                self.font_path = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"  # 微软雅黑
-                self.font = ImageFont.truetype(self.font_path, 30)
-                self.font_small = ImageFont.truetype(self.font_path, 16)
-            except:
-                # 如果都找不到，使用默认字体
-                self.font = ImageFont.load_default()
-                self.font_small = ImageFont.load_default()
+        self.font, self.font_small, self.font_path = load_cjk_font_pair(30, 16)
+        self._cjk_font_ok = self.font is not None
 
     def _generate_colors(self, num_classes):
         hsv_tuples = [(x / num_classes, 1., 1.) for x in range(num_classes)]
@@ -684,29 +671,51 @@ class ObjectTracker:
         return frame
     
     def _draw_chinese_text(self, frame, text, position, font_size=24, color=(255, 255, 255)):
-        """使用PIL绘制中文文字到OpenCV图像上"""
-        height, width, _ = frame.shape
-    
-        # 根据画面高度动态调整字体大小
-        font_size = int(height / 25)  # 例如，设置字体大小为画面高度的1/20
+        """使用 PIL 绘制中文；无字体时用 OpenCV 绘制 ASCII 回退。"""
+        if not self._cjk_font_ok:
+            safe = ascii_fallback_text(text)
+            if safe:
+                x, y = int(position[0]), int(position[1])
+                cv2.putText(
+                    frame,
+                    safe,
+                    (x, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2,
+                    cv2.LINE_AA,
+                )
+            return
 
-        # 将OpenCV图像转换为PIL图像
+        height, _, _ = frame.shape
+        font_size = int(height / 25)
+        current_font = self.font_small if font_size <= 24 else self.font
+
         frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(frame_pil)
-        # 选择字体大小
-        if font_size <= 24:
-            current_font = self.font_small
-        else:
-            current_font = self.font
-        # 绘制文字（PIL的颜色是RGB格式）
-        pil_color = (color[2], color[1], color[0])  # BGR转RGB
+        pil_color = (color[2], color[1], color[0])
 
         try:
             draw.text(position, text, font=current_font, fill=pil_color)
         except Exception as e:
+            safe = ascii_fallback_text(text)
+            if safe:
+                x, y = int(position[0]), int(position[1])
+                cv2.putText(
+                    frame,
+                    safe,
+                    (x, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2,
+                    cv2.LINE_AA,
+                )
+                return
             print(f"绘制文字失败: {e}")
+            return
 
-        # 将PIL图像转换回OpenCV图像
         frame_cv = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
         frame[:] = frame_cv[:]
 

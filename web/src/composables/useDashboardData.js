@@ -122,8 +122,23 @@ export function useDashboardData() {
       status: 'normal',
       cpu: { percent: 0, total: 0, used: 0 },
       memory: { percent: 0, total: 0, used: 0 },
-      disk: { percent: 0, total: 0, used: 0 },
+      disk: { percent: 0, total: 0, used: 0, path: '/' },
       gpu: { percent: 0, total: 0, used: 0 },
+      npu: {
+        available: false,
+        load_percent: null,
+        load_readable: '',
+        driver_version: '',
+        status_text: '',
+      },
+      system: {
+        hostname: '',
+        edge_inference: '',
+        uptime_text: '',
+        current_time: '',
+      },
+      data_storage: { percent: 0, total: 0, used: 0 },
+      detection: { enabled_configs: 0 },
     },
     lastUpdated: '',
     screenName: DEFAULT_DASHBOARD_SCREEN_NAME,
@@ -132,6 +147,7 @@ export function useDashboardData() {
   const loading = reactive({ board: false, systemStatus: false, waitTime: false })
   const errors = reactive({ board: null, systemStatus: null, waitTime: null })
   let refreshTimer = null
+  let systemStatusTimer = null
 
   const apiRequest = async (endpoint, fallback = null) => {
     try {
@@ -258,7 +274,20 @@ export function useDashboardData() {
     loading.systemStatus = true
     try {
       const raw = await apiRequest('/dashboard/system-status')
-      if (raw) data.systemStatus = raw
+      if (raw) {
+        data.systemStatus = {
+          ...data.systemStatus,
+          ...raw,
+          cpu: { ...data.systemStatus.cpu, ...(raw.cpu || {}) },
+          memory: { ...data.systemStatus.memory, ...(raw.memory || {}) },
+          disk: { ...data.systemStatus.disk, ...(raw.disk || {}) },
+          gpu: { ...data.systemStatus.gpu, ...(raw.gpu || {}) },
+          npu: { ...data.systemStatus.npu, ...(raw.npu || {}) },
+          system: { ...data.systemStatus.system, ...(raw.system || {}) },
+          data_storage: { ...data.systemStatus.data_storage, ...(raw.data_storage || {}) },
+          detection: { ...data.systemStatus.detection, ...(raw.detection || {}) },
+        }
+      }
     } catch (error) {
       errors.systemStatus = error
     } finally {
@@ -283,6 +312,16 @@ export function useDashboardData() {
       clearInterval(refreshTimer)
       refreshTimer = null
     }
+    if (systemStatusTimer) {
+      clearInterval(systemStatusTimer)
+      systemStatusTimer = null
+    }
+  }
+
+  const startSystemStatusRefresh = (interval = 5000) => {
+    if (systemStatusTimer) clearInterval(systemStatusTimer)
+    loadSystemStatus()
+    systemStatusTimer = setInterval(loadSystemStatus, interval)
   }
 
   const typeChartTitle = computed(() =>
@@ -307,6 +346,7 @@ export function useDashboardData() {
     loadAllData,
     refreshData,
     startAutoRefresh,
+    startSystemStatusRefresh,
     stopAutoRefresh,
   }
 }

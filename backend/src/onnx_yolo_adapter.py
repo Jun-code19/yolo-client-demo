@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -116,6 +117,40 @@ def _nms_xyxy(boxes: np.ndarray, scores: np.ndarray, iou_thres: float, max_det: 
     return keep
 
 
+def _maybe_sigmoid_scores(scores: np.ndarray) -> np.ndarray:
+    if scores.size == 0:
+        return scores
+    smin = float(np.min(scores))
+    smax = float(np.max(scores))
+    if smin >= 0.0 and smax <= 1.0:
+        return scores.astype(np.float32, copy=False)
+    return (1.0 / (1.0 + np.exp(-np.clip(scores, -50, 50)))).astype(np.float32)
+
+
+def _normalize_yolo_pred_layout(pred: np.ndarray, nc_hint: int) -> tuple[np.ndarray, int]:
+    """Ultralytics 检测头常见 (4+nc, N) 或 (N, 4+nc)，统一为 (N, 4+nc)。"""
+    if pred.ndim == 3:
+        pred = pred[0]
+    if pred.ndim != 2:
+        return pred, max(int(nc_hint or 0), 1)
+
+    h, w = pred.shape
+    nc_hint = max(int(nc_hint or 0), 1)
+
+    # 通道在前：(8, 8400) / (84, 8400)
+    if h < w and 6 <= h <= 4 + 512:
+        return pred.T, max(nc_hint, h - 4)
+    # 锚点在前：(8400, 8)
+    if w < h and 6 <= w <= 4 + 512:
+        return pred, max(nc_hint, w - 4)
+    if w <= h and 6 <= w <= 4 + 512:
+        return pred, max(nc_hint, w - 4)
+
+    if h in (4 + nc_hint, 84, 4 + 80) and h < w:
+        return pred.T, nc_hint
+    return pred, nc_hint
+
+
 def _postprocess_yolo_output(
     pred: np.ndarray,
     conf_thres: float,
@@ -124,14 +159,11 @@ def _postprocess_yolo_output(
     nc: int,
 ) -> np.ndarray:
     """pred: (N, 4+nc) 或 (4+nc, N)。"""
-    if pred.ndim == 3:
-        pred = pred[0]
-    if pred.shape[0] in (4 + nc, 84, 4 + 80) and pred.shape[0] < pred.shape[1]:
-        pred = pred.T
-    if pred.shape[1] < 6:
+    pred, nc = _normalize_yolo_pred_layout(pred, nc)
+    if pred.ndim != 2 or pred.shape[1] < 6:
         return np.zeros((0, 6), dtype=np.float32)
     boxes = pred[:, :4]
-    cls_scores = pred[:, 4:]
+    cls_scores = _maybe_sigmoid_scores(pred[:, 4:])
     if cls_scores.size == 0:
         return np.zeros((0, 6), dtype=np.float32)
     class_ids = np.argmax(cls_scores, axis=1)
@@ -140,6 +172,12 @@ def _postprocess_yolo_output(
     boxes = boxes[mask]
     scores = scores[mask]
     class_ids = class_ids[mask]
+    if len(boxes) == 0:
+        return np.zeros((0, 6), dtype=np.float32)
+    finite = np.isfinite(boxes).all(axis=1) & np.isfinite(scores)
+    boxes = boxes[finite]
+    scores = scores[finite]
+    class_ids = class_ids[finite]
     if len(boxes) == 0:
         return np.zeros((0, 6), dtype=np.float32)
     boxes_xyxy = _xywh2xyxy(boxes.astype(np.float32))
@@ -177,6 +215,7 @@ class OnnxYoloAdapter:
         self.imgsz = imgsz or _resolve_imgsz(self.session, self.input_name)
         self.names = class_names or {0: "object"}
         self.nc = len(self.names)
+        self._infer_lock = threading.Lock()
         logger.info(
             "ONNX 适配器已加载: input=%s outputs=%s imgsz=%s nc=%s",
             self.input_name,
@@ -212,20 +251,13 @@ class OnnxYoloAdapter:
             im_batch = im_batch[None]
             t1 = time.perf_counter()
 
-            outputs = self.session.run(self.output_names, {self.input_name: im_batch})
-            t2 = time.perf_counter()
-
-            raw = outputs[0].astype(np.float32)
-            nc = max(self.nc, 1)
-            if raw.ndim >= 2:
-                feat = raw[0] if raw.ndim == 3 else raw
-                if feat.shape[0] < feat.shape[1]:
-                    nc = max(nc, feat.shape[1] - 4)
-                else:
-                    nc = max(nc, feat.shape[0] - 4)
-            det = _postprocess_yolo_output(raw, conf, iou, max_det, nc)
-            if len(det):
-                det[:, :4] = _scale_boxes(det[:, :4], im.shape, im0.shape)
+            with self._infer_lock:
+                outputs = self.session.run(self.output_names, {self.input_name: im_batch})
+                t2 = time.perf_counter()
+                raw = outputs[0].astype(np.float32).copy()
+                det = _postprocess_yolo_output(raw, conf, iou, max_det, max(self.nc, 1))
+                if len(det):
+                    det[:, :4] = _scale_boxes(det[:, :4], im.shape, im0.shape)
 
             t3 = time.perf_counter()
             boxes = [

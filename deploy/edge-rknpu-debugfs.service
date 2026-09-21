@@ -1,0 +1,12 @@
+[Unit]
+Description=Expose RKNPU debugfs load for edge-ai-box monitoring
+Before=edge-unified.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /opt/edge-ai-box/deploy/edge-rknpu-debugfs-pre.sh
+
+[Install]
+WantedBy=multi-user.target

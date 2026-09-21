@@ -91,11 +91,14 @@ pip install rknn_cp38.whl
 
 **NPU 设备**：新驱动多为 **`/dev/dri/renderD129`** + `RKNPU driver v0.9.x`，不一定有 `/dev/rknpu0`；见 [BARE-METAL.md](./BARE-METAL.md) 常见问题。
 
-`librknnrt.so` 通常在 `/usr/lib`；若 `import` 失败，设置：
+`librknnrt.so` 需出现在 **`/usr/lib/librknnrt.so`**（`rknnlite` 硬编码路径，仅设 `LD_LIBRARY_PATH` 往往不够）。Debian/arm64 若只在 `/usr/lib/aarch64-linux-gnu/` 下有库：
 
 ```bash
-export LD_LIBRARY_PATH=/usr/lib:$LD_LIBRARY_PATH
+sudo ln -sf /usr/lib/aarch64-linux-gnu/librknnrt.so /usr/lib/librknnrt.so
+sudo ldconfig
 ```
+
+可选：`export LD_LIBRARY_PATH=/usr/lib:/usr/lib/aarch64-linux-gnu:$LD_LIBRARY_PATH`
 
 ## 4. 配置 edge-ai-box
 
@@ -120,6 +123,8 @@ sudo systemctl restart edge-unified
 ```
 
 日志应出现：`RKNN/NPU 适配器已加载`。
+
+Web 上查看 NPU 占用需已启用 **`edge-rknpu-debugfs-refresh.timer`**（见 [BARE-METAL.md](./BARE-METAL.md) §5–§6）。
 
 ## 5. 常见问题
 

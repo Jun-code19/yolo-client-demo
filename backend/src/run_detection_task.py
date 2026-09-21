@@ -44,6 +44,7 @@ from src.yolo_task_utils import (
     build_detection_meta,
     load_detection_model,
     predict_detection_frame,
+    class_names_for_model_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,6 +165,7 @@ class DetectionTask:
                 abs_model_path,
                 self.models_type,
                 self.is_gpu,
+                class_names=class_names_for_model_path(abs_model_path),
             )
             self.class_names = getattr(self.model, "names", {})
             if getattr(self.model, "backend", None) == "rknn":
@@ -534,7 +536,7 @@ class DetectionTask:
                                 self.broadcast_img_result(detect_frame, output_detections)
                             
                         except Exception as e:
-                            logger.error(f"模型推理过程中出错: {e}")
+                            logger.error("模型推理过程中出错: %s", e, exc_info=True)
                             # 不终止整个检测循环，仅记录错误
                     
                     # 动态休眠，根据客户端连接情况调整
@@ -640,7 +642,7 @@ class DetectionTask:
             color = self.get_class_color(cls)
             
             cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-            class_name = self.class_names[cls] if self.class_names else f"Class {cls}"
+            class_name = (self.class_names or {}).get(cls, f"Class {cls}")
             label = f"{class_name}: {conf:.2f}"
             cv2.putText(img, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
@@ -656,9 +658,7 @@ class DetectionTask:
             conf = det.get("confidence", 0.0)
             color = self.get_class_color(cls)
             cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-            class_name = det.get("class_name") or (
-                self.class_names[cls] if self.class_names else f"Class {cls}"
-            )
+            class_name = det.get("class_name") or (self.class_names or {}).get(cls, f"Class {cls}")
             label = f"{class_name}: {conf:.2f}"
             cv2.putText(
                 img, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2
@@ -711,7 +711,8 @@ class DetectionTask:
     def get_class_color(self, class_id): # 获取类别颜色
         if class_id not in self.class_colors:
             if not self.class_colors:
-                colors = self.generate_colors(len(self.class_names))
+                num = max(len(self.class_names or {}), int(class_id) + 1, 4)
+                colors = self.generate_colors(num)
                 self.class_colors = {i: color for i, color in enumerate(colors)}
             else:
                 self.class_colors[class_id] = tuple(np.random.randint(0, 255, 3).tolist())

@@ -1,0 +1,7 @@
+[Unit]
+Description=Refresh RKNPU load snapshot for edge-ai-box
+After=edge-rknpu-debugfs.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh /opt/edge-ai-box/deploy/edge-rknpu-debugfs-pre.sh

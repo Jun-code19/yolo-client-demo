@@ -25,7 +25,7 @@
 edge-ai-box/
 ├── backend/          # serve_unified.py、api/、src/
 ├── web/
-├── deploy/           # RK3588 部署、Nginx、systemd、RKNN 说明
+├── deploy/           # RK3588 部署（见 deploy/README.md 索引）
 └── scripts/          # setup-backend.ps1、dev-unified.ps1
 ```
 
@@ -55,9 +55,11 @@ cd web; npm run dev            # http://127.0.0.1:5173 → 代理 8080
 
 ## RK3588 量产（摘要）
 
-1. 按 **[deploy/BARE-METAL.md](deploy/BARE-METAL.md)** 安装 Postgres、venv（**`requirements.rk3588-py38.txt`**，系统 Python 3.8）、Nginx、systemd。
+1. 按 **[deploy/BARE-METAL.md](deploy/BARE-METAL.md)** 安装 Postgres、venv（**`requirements.rk3588-py38.txt`**，Python 3.8）、Nginx、**systemd**（`edge-unified` + `edge-rknpu-debugfs` + 刷新 timer）。
 2. PC 上把 YOLO 转为 **`.rknn`**：**[deploy/RKNN-EXPORT.md](deploy/RKNN-EXPORT.md)**。
-3. 盒子 **`EDGE_INFERENCE=rknn`**，安装 **rknn-toolkit-lite2**，上传模型并在参数中填写 **`classes`**。
+3. 盒子 **`backend/.env`** 设 **`EDGE_INFERENCE=rknn`**，安装 **rknn-toolkit-lite2**，用户 **`edge`** 加入 **render/video** 组。
+4. 安装 **`fonts-wqy-zenhei`**（预览中文标签）；上传模型并在参数中填写 **`classes`**。
+5. 验证 NPU：`journalctl` 见 `RKNN/NPU 适配器已加载`；Web **系统状态 / 展板** 见 NPU 负载（依赖 `/run/edge-ai-box/rknpu-load`）。
 
 总览与约束：**[deploy/RK3588.md](deploy/RK3588.md)**。
 

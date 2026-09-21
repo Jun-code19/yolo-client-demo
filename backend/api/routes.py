@@ -1077,6 +1077,17 @@ def update_model(
     update_data = model_update.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(model, field, value)
+
+    if "parameters" in update_data:
+        from src.yolo_task_utils import (
+            normalize_model_parameters,
+            class_names_from_detection_model,
+        )
+
+        model.parameters = normalize_model_parameters(model.parameters or {})
+        classes = class_names_from_detection_model(None, model.parameters)
+        if classes:
+            model.models_classes = classes
     
     try:
         db.commit()
@@ -3024,97 +3035,11 @@ async def list_push_logs_v1(
 # 系统状态监控API
 @router.get("/system/status", tags=["系统管理"])
 def get_system_status(db: Session = Depends(get_db)):
-    """获取系统状态信息（CPU、内存、磁盘、GPU等）"""
+    """获取边缘盒系统状态（主机信息、CPU/内存/NPU/存储等）"""
     try:
-        import psutil
-        import os
-        
-        # CPU信息
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_max = psutil.cpu_count(logical=True) # 逻辑核心数
-        cpu_used = round(cpu_max * (cpu_percent / 100), 2) # 假设一个核心代表100%的使用率，这里只是一个概念性的已使用值
-        
-        # 内存信息
-        memory = psutil.virtual_memory()
-        memory_percent = memory.percent
-        memory_total = round(memory.total / (1024 ** 3), 2)  # GB
-        memory_used = round(memory.used / (1024 ** 3), 2)    # GB
-        
-        # 磁盘信息（Windows 用系统盘，Linux 用 /）
-        disk_root = os.environ.get("SystemDrive", "C:") + "\\" if os.name == "nt" else "/"
-        disk = psutil.disk_usage(disk_root)
-        disk_percent = disk.percent
-        disk_total = round(disk.total / (1024 ** 3), 2) # GB
-        disk_used = round(disk.used / (1024 ** 3), 2)  # GB
-           
-        # 尝试获取GPU信息
-        gpu_percent = 0
-        gpu_total_memory = 0
-        gpu_used_memory = 0
-        
-        try:
-            import GPUtil
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                # 假设只监控第一个GPU，你可以根据需求遍历所有GPU
-                gpu = gpus[0]
-                
-                gpu_percent = gpu.load * 100  # GPUtil的load是0-1之间的浮点数，转换为百分比
-                gpu_total_memory = round(gpu.memoryTotal / 1024, 2)  # 转换为GB
-                gpu_used_memory = round(gpu.memoryUsed / 1024, 2)    # 转换为GB
-            else:
-                # logger.info("No NVIDIA GPUs found on the system using GPUtil.")
-                pass
-        except Exception as e:
-            # logger.info(f"An error occurred while getting GPU info using GPUtil: {e}")
-            pass
-            # 如果发生错误，保持gpu信息为0
-        
-        # 确定系统整体状态
-        status = "normal"
-        if cpu_percent > 90 or memory_percent > 90 or disk_percent > 90 or gpu_percent > 90:
-            status = "danger"
-        elif cpu_percent > 70 or memory_percent > 80 or disk_percent > 80 or gpu_percent > 70:
-            status = "warning"
-            
-        # 获取最近的系统日志
-        logs = db.query(SysLog).order_by(SysLog.log_time.desc()).limit(20).all()
-        log_entries = []
-        for log in logs:
-            detail = log.detail or ""
-            log_entries.append({
-                "time": log.log_time.strftime("%Y-%m-%d %H:%M:%S"),
-                "level": "ERROR" if "error" in detail.lower() else "INFO",
-                "message": detail or "-"
-            })
-            
-        # 构建响应
-        response = {
-            "status": status,
-            "cpu": {
-                "percent": cpu_percent,
-                "total": cpu_max,
-                "used": cpu_used
-            },
-            "memory": {
-                "percent": memory_percent,
-                "total": memory_total,
-                "used": memory_used
-            },
-            "disk": {
-                "percent": disk_percent,
-                "total": disk_total,
-                "used": disk_used
-            },
-            "gpu": {
-                "percent": gpu_percent,
-                "total": gpu_total_memory,
-                "used": gpu_used_memory
-            },
-            "logs": log_entries
-        }
-        
-        return response
+        from src.system_status import collect_system_status
+
+        return collect_system_status(db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取系统状态失败: {str(e)}")
 

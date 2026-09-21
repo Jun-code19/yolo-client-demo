@@ -34,9 +34,46 @@
             <div class="panel-head">近 7 天事件趋势</div>
             <div ref="trendChartRef" class="chart-box chart-side" />
               </div>
-          <div class="panel panel-overlay">
-            <div class="panel-head">{{ thirdPanelTitle }}</div>
-            <div ref="systemChartRef" class="chart-box chart-side" />
+          <div class="panel panel-overlay panel-system">
+            <div class="panel-head panel-head-system">
+              <span>{{ thirdPanelTitle }}</span>
+              <span v-if="systemStatusBadge" class="sys-badge" :class="systemStatusBadge">{{ systemStatusBadgeText }}</span>
+            </div>
+            <div class="system-panel-body">
+              <div class="sys-info-grid">
+                <div v-if="systemHostLine" class="sys-info-item sys-info-wide">
+                  <span class="sys-lbl">主机</span>
+                  <span class="sys-val" :title="systemHostLine">{{ systemHostLine }}</span>
+                </div>
+                <div class="sys-info-item">
+                  <span class="sys-lbl">推理</span>
+                  <span class="sys-val">{{ inferenceShort || '—' }}</span>
+                </div>
+                <div class="sys-info-item">
+                  <span class="sys-lbl">运行</span>
+                  <span class="sys-val">{{ systemStatus.system?.uptime_text || '—' }}</span>
+                </div>
+                <div class="sys-info-item">
+                  <span class="sys-lbl">检测</span>
+                  <span class="sys-val">{{ systemStatus.detection?.enabled_configs ?? 0 }} 路</span>
+                </div>
+              </div>
+              <div v-if="systemNpuLine" class="sys-npu-line" :title="systemNpuLine">{{ systemNpuLine }}</div>
+              <div v-if="systemMetricBars.length" class="sys-metric-list">
+                <div v-for="row in systemMetricBars" :key="row.name" class="sys-metric-row">
+                  <span class="sys-metric-name">{{ row.name }}</span>
+                  <div class="sys-metric-track">
+                    <div
+                      class="sys-metric-fill"
+                      :class="row.tone"
+                      :style="{ width: `${row.value}%` }"
+                    />
+                  </div>
+                  <span class="sys-metric-pct">{{ row.value }}%</span>
+                </div>
+              </div>
+              <div v-else class="empty-tip compact sys-empty">暂无资源数据</div>
+            </div>
             </div>
         </aside>
 
@@ -252,6 +289,7 @@ const {
   data,
   refreshData,
   startAutoRefresh,
+  startSystemStatusRefresh,
   stopAutoRefresh,
   typeChartTitle,
   deviceChartTitle,
@@ -260,7 +298,6 @@ const {
 
 const currentTime = ref('')
 const trendChartRef = ref(null)
-const systemChartRef = ref(null)
 const typeChartRef = ref(null)
 const deviceChartRef = ref(null)
 const hourlyChartRef = ref(null)
@@ -278,7 +315,6 @@ let autoScrollPaused = false
 let scrollPausePointerId = null
 let removeScrollPauseHandlers = null
 let trendChart = null
-let systemChart = null
 let typeChart = null
 let deviceChart = null
 let hourlyChart = null
@@ -293,15 +329,72 @@ const alertHistory = computed(() => data.alertHistory)
 const liveMonitors = computed(() => data.liveMonitors)
 const lastUpdated = computed(() => data.lastUpdated)
 const historicalStats = computed(() => data.historicalStats)
-const performanceTrend = computed(() => data.performanceTrend)
 const typeStats = computed(() => data.typeStats)
 const deviceRanking = computed(() => data.deviceRanking)
 const hourlyStats = computed(() => data.hourlyStats)
 const alertFeed = computed(() => data.alertFeed)
-const waitTimeData = computed(() => data.waitTimeData)
-const useWaitTimeChart = computed(() => data.useWaitTimeChart)
 const systemStatus = computed(() => data.systemStatus)
 const screenTitle = computed(() => data.screenName || '边缘AI展示大屏')
+
+const inferenceShort = computed(() => {
+  const b = (systemStatus.value.system?.edge_inference || '').toLowerCase()
+  if (b === 'rknn') return 'RKNN'
+  if (b === 'onnx') return 'ONNX'
+  if (b === 'ultralytics') return 'Ultralytics'
+  return b || ''
+})
+
+const systemHostLine = computed(() => systemStatus.value.system?.hostname || '')
+
+const systemNpuLine = computed(() => {
+  const npu = systemStatus.value.npu
+  if (!npu) return ''
+  if (npu.load_readable) return npu.load_readable
+  if ((systemStatus.value.system?.edge_inference || '').toLowerCase() === 'rknn' && npu.status_text) {
+    return npu.status_text
+  }
+  return ''
+})
+
+const systemMetricBars = computed(() => {
+  const s = systemStatus.value
+  const rows = []
+  const push = (name, raw, tone) => {
+    if (raw == null || Number.isNaN(Number(raw))) return
+    rows.push({
+      name,
+      value: Math.min(100, Math.max(0, Math.round(Number(raw)))),
+      tone,
+    })
+  }
+  push('CPU', s.cpu?.percent, 'tone-cpu')
+  push('内存', s.memory?.percent, 'tone-mem')
+  const showNpu =
+    (s.system?.edge_inference || '').toLowerCase() === 'rknn' || s.npu?.available
+  if (showNpu) {
+    const npuVal = s.npu?.load_percent
+    push('NPU', npuVal != null ? npuVal : 0, 'tone-npu')
+  }
+  if (s.gpu?.percent > 0) push('GPU', s.gpu.percent, 'tone-gpu')
+  push('磁盘', s.disk?.percent, 'tone-disk')
+  const ds = s.data_storage
+  if (ds?.percent > 0 && ds.percent !== s.disk?.percent) {
+    push('应用', ds.percent, 'tone-data')
+  }
+  return rows
+})
+
+const systemStatusBadge = computed(() => {
+  const s = systemStatus.value.status
+  if (s === 'warning') return 'warn'
+  if (s === 'danger') return 'danger'
+  return s === 'normal' ? 'ok' : ''
+})
+
+const systemStatusBadgeText = computed(() => {
+  const map = { ok: '正常', warn: '注意', danger: '偏高' }
+  return map[systemStatusBadge.value] || ''
+})
 
 const CHART_THEME = {
   text: '#cbd5e1',
@@ -506,186 +599,6 @@ const updateTrendChart = () => {
   }, true)
 }
 
-const updateSystemChart = () => {
-  if (!systemChart) return
-  const s = systemStatus.value
-  const items = []
-  if (s.cpu?.percent != null) items.push({ name: 'CPU', value: s.cpu.percent, color: ['#66b1ff', '#ff6b6b'] })
-  if (s.memory?.percent != null) items.push({ name: '内存', value: s.memory.percent, color: ['#4a90e2', '#1e3c72'] })
-  if (s.disk?.percent != null) items.push({ name: '磁盘', value: s.disk.percent, color: ['#ffbf00', '#66b1ff'] })
-  if (s.gpu?.percent > 0) items.push({ name: 'GPU', value: s.gpu.percent, color: ['#2ec7cd', '#1fdac5'] })
-  if (!items.length) {
-    systemChart.setOption(emptyChartOption('暂无资源数据'), true)
-    return
-  }
-  systemChart.setOption({
-    backgroundColor: 'transparent',
-    grid: { left: 48, right: 36, top: 8, bottom: 8, containLabel: true },
-    xAxis: {
-      type: 'value', max: 100,
-      axisLabel: { color: CHART_THEME.text, formatter: '{value}%' },
-      splitLine: { lineStyle: { color: CHART_THEME.split, type: 'dashed' } },
-    },
-    yAxis: {
-      type: 'category',
-      data: items.map((i) => i.name),
-      axisLabel: { color: CHART_THEME.text },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
-    series: [{
-      type: 'bar',
-      barWidth: 14,
-      data: items.map((i) => ({
-        value: i.value,
-        itemStyle: {
-          borderRadius: [0, 6, 6, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: i.color[0] },
-            { offset: 1, color: i.color[1] },
-          ]),
-        },
-      })),
-      label: { show: true, position: 'right', formatter: '{c}%', color: '#fff', fontSize: 11 },
-    }],
-  }, true)
-}
-
-const updateWaitTimeChart = () => {
-  if (!systemChart) return
-  const rows = waitTimeData.value || []
-  if (!rows.length) {
-    systemChart.setOption(emptyChartOption('暂无排队数据'), true)
-    return
-  }
-  const projectNames = rows.map((item) => item.projectName)
-  systemChart.setOption({
-    backgroundColor: 'transparent',
-    grid: { left: 8, right: 8, top: 28, bottom: 4, containLabel: true },
-    legend: {
-      data: ['排队时长', '排队人数', '项目时间'],
-      textStyle: { color: CHART_THEME.text, fontSize: 9 },
-      top: 0,
-      itemWidth: 10,
-      itemHeight: 8,
-    },
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      backgroundColor: CHART_THEME.tooltipBg,
-      borderWidth: 0,
-      textStyle: { color: '#fff', fontSize: 11 },
-    },
-    xAxis: {
-      type: 'category',
-      data: projectNames,
-      axisLabel: {
-        color: CHART_THEME.text,
-        fontSize: 9,
-        interval: 0,
-        rotate: projectNames.length > 4 ? 18 : 0,
-      },
-      axisLine: { lineStyle: { color: CHART_THEME.axis } },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      minInterval: 1,
-      axisLabel: { color: CHART_THEME.text, fontSize: 9 },
-      splitLine: { lineStyle: { color: CHART_THEME.split, type: 'dashed' } },
-    },
-    series: [
-      {
-        name: '排队时长',
-        type: 'bar',
-        data: rows.map((item) => item.waitingMinutes),
-        barWidth: '22%',
-        itemStyle: {
-          borderRadius: [3, 3, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#66b1ff' },
-            { offset: 1, color: '#ff6b6b' },
-          ]),
-        },
-      },
-      {
-        name: '排队人数',
-        type: 'bar',
-        data: rows.map((item) => item.peopleCount),
-        barWidth: '22%',
-        itemStyle: {
-          borderRadius: [3, 3, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#4a90e2' },
-            { offset: 1, color: '#1e3c72' },
-          ]),
-        },
-      },
-      {
-        name: '项目时间',
-        type: 'bar',
-        data: rows.map((item) => item.projectInterval),
-        barWidth: '22%',
-        itemStyle: {
-          borderRadius: [3, 3, 0, 0],
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#2ec7cd' },
-            { offset: 1, color: '#1fdac5' },
-          ]),
-        },
-      },
-    ],
-  }, true)
-}
-
-const updateThirdPanelChart = () => {
-  updateSystemChart()
-}
-
-const updatePerfChart = () => {
-  if (!perfChart) return
-  const rows = performanceTrend.value || []
-  const hasData = rows.some((r) => r.avg_ms > 0)
-  if (!hasData) {
-    perfChart.setOption(emptyChartOption('暂无性能样本'), true)
-    return
-  }
-  perfChart.setOption({
-    backgroundColor: 'transparent',
-    grid: { left: 40, right: 12, top: 16, bottom: 24 },
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: CHART_THEME.tooltipBg,
-      borderWidth: 0,
-      textStyle: { color: '#fff', fontSize: 12 },
-      formatter: (params) => {
-        const p = params[0]
-        const raw = rows[p.dataIndex]
-        return `${p.name}<br/>${p.value}ms · 样本 ${raw?.sample_count || 0}`
-      },
-    },
-    xAxis: {
-      type: 'category',
-      data: rows.map((r) => formatDateLabel(r.date)),
-      axisLabel: { color: CHART_THEME.text, fontSize: 10 },
-      axisLine: { lineStyle: { color: CHART_THEME.axis } },
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: { color: CHART_THEME.text, fontSize: 10 },
-      splitLine: { lineStyle: { color: CHART_THEME.split, type: 'dashed' } },
-    },
-    series: [{
-      name: '均耗',
-        type: 'line',
-        smooth: true,
-      data: rows.map((r) => r.avg_ms || 0),
-      itemStyle: { color: '#2ec7cd' },
-      areaStyle: { color: 'rgba(46,199,205,0.12)' },
-    }],
-  }, true)
-}
-
 const updateHourlyChart = () => {
   if (!hourlyChart) return
   const rows = hourlyStats.value || []
@@ -778,12 +691,10 @@ const updateBarChart = (chart, items, emptyText, valueLabel = '') => {
 const refreshCharts = () => {
   nextTick(() => {
     trendChart?.resize()
-    systemChart?.resize()
     typeChart?.resize()
     deviceChart?.resize()
     hourlyChart?.resize()
     updateTrendChart()
-    updateThirdPanelChart()
     updateHourlyChart()
     updateBarChart(typeChart, typeStats.value, '暂无类型统计')
     updateBarChart(deviceChart, deviceRanking.value, '暂无设备告警')
@@ -792,7 +703,6 @@ const refreshCharts = () => {
 
 const initCharts = () => {
   if (trendChartRef.value) trendChart = echarts.init(trendChartRef.value)
-  if (systemChartRef.value) systemChart = echarts.init(systemChartRef.value)
   if (typeChartRef.value) typeChart = echarts.init(typeChartRef.value)
   if (deviceChartRef.value) deviceChart = echarts.init(deviceChartRef.value)
   if (hourlyChartRef.value) hourlyChart = echarts.init(hourlyChartRef.value)
@@ -861,7 +771,7 @@ const startAutoScroll = () => {
 
 watch([
   historicalStats, typeStats, deviceRanking,
-  hourlyStats, systemStatus,
+  hourlyStats,
 ], refreshCharts, { deep: true })
 
 onMounted(async () => {
@@ -873,6 +783,7 @@ onMounted(async () => {
     observeLayout()
   }, 80)
   startAutoRefresh(120000)
+  startSystemStatusRefresh(5000)
   startAutoScroll()
   removeScrollPauseHandlers = setupScrollPauseHandlers()
   window.addEventListener('resize', onResize)
@@ -887,7 +798,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize)
   layoutObserver?.disconnect()
   trendChart?.dispose()
-  systemChart?.dispose()
   typeChart?.dispose()
   deviceChart?.dispose()
   hourlyChart?.dispose()
@@ -1250,6 +1160,162 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.panel-head-system {
+  gap: 8px;
+}
+
+.panel-system {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.system-panel-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px 8px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.sys-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  flex: 0 0 auto;
+}
+
+.sys-info-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.sys-info-wide {
+  grid-column: 1 / -1;
+}
+
+.sys-lbl {
+  flex: 0 0 auto;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.sys-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #e2e8f0;
+  word-break: break-all;
+}
+
+.sys-npu-line {
+  flex: 0 0 auto;
+  font-size: 9px;
+  line-height: 1.4;
+  color: rgba(167, 139, 250, 0.95);
+  word-break: break-all;
+}
+
+.sys-metric-list {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.sys-metric-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 34px;
+  align-items: center;
+  gap: 6px;
+}
+
+.sys-metric-name {
+  font-size: 10px;
+  color: rgba(203, 213, 225, 0.9);
+  text-align: right;
+}
+
+.sys-metric-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.sys-metric-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.35s ease;
+}
+
+.sys-metric-fill.tone-cpu {
+  background: linear-gradient(90deg, #66b1ff, #ff6b6b);
+}
+
+.sys-metric-fill.tone-mem {
+  background: linear-gradient(90deg, #4a90e2, #1e3c72);
+}
+
+.sys-metric-fill.tone-npu {
+  background: linear-gradient(90deg, #a78bfa, #7c3aed);
+}
+
+.sys-metric-fill.tone-gpu {
+  background: linear-gradient(90deg, #2ec7cd, #1fdac5);
+}
+
+.sys-metric-fill.tone-disk {
+  background: linear-gradient(90deg, #ffbf00, #e6a23c);
+}
+
+.sys-metric-fill.tone-data {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.sys-metric-pct {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+  text-align: right;
+}
+
+.sys-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sys-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.sys-badge.ok {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.sys-badge.warn {
+  color: #fde047;
+  background: rgba(234, 179, 8, 0.15);
+}
+
+.sys-badge.danger {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
 }
 
 .panel-meta {

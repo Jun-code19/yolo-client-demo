@@ -34,7 +34,14 @@ from src.detection_runtime import extract_runtime_config
 from src.inference_pipeline.pipeline_config import extract_inference_pipeline
 from src.run_detection_task import DetectionTask
 from src.group_detection_task import GroupDetectionTask
-from src.yolo_task_utils import resolve_yolo_task, load_yolo_model_classes, load_detection_model, is_onnx_model_path
+from src.yolo_task_utils import (
+    resolve_yolo_task,
+    load_yolo_model_classes,
+    load_detection_model,
+    is_onnx_model_path,
+    class_names_for_model_record,
+    apply_class_names_to_detector,
+)
 from src.inference_backend import cuda_available, use_ultralytics
 
 # 导入认证模块
@@ -301,8 +308,17 @@ class DetectionServer:
         if model_path not in self.models_cache:
             try:
                 logger.info("预加载模型到缓存: %s", model_path)
+                class_names = class_names_for_model_record(model)
+                logger.info(
+                    "预加载模型类别: path=%s count=%s",
+                    model_path,
+                    len(class_names),
+                )
                 cached, infer_dev, is_onnx = load_detection_model(
-                    model_path, model.models_type, model.is_gpu
+                    model_path,
+                    model.models_type,
+                    model.is_gpu,
+                    class_names=class_names,
                 )
                 self.models_cache[model_path] = {
                     "model": cached,
@@ -345,16 +361,21 @@ class DetectionServer:
                 task.is_onnx_model = entry["is_onnx"]
             else:
                 task.model = entry
-            task.class_names = getattr(task.model, "names", {})
+            class_names = apply_class_names_to_detector(
+                task.model,
+                class_names_for_model_record(model),
+            )
+            task.class_names = class_names
             if use_ultralytics() and not task.is_onnx_model:
                 import torch
 
                 device = "cuda" if cuda_available() and model.is_gpu else "cpu"
                 task.device = torch.device(device)
             logger.info(
-                "使用缓存模型设置任务: %s onnx=%s",
+                "使用缓存模型设置任务: %s onnx=%s class_count=%s",
                 config_id,
                 getattr(task, "is_onnx_model", is_onnx_model_path(model_path)),
+                len(class_names),
             )
         
         # 设置事件循环
@@ -398,8 +419,12 @@ class DetectionServer:
 
         if model_path not in self.models_cache:
             try:
+                class_names = class_names_for_model_record(model)
                 cached, infer_dev, is_onnx = load_detection_model(
-                    model_path, model.models_type, model.is_gpu
+                    model_path,
+                    model.models_type,
+                    model.is_gpu,
+                    class_names=class_names,
                 )
                 self.models_cache[model_path] = {
                     "model": cached,
@@ -435,7 +460,10 @@ class DetectionServer:
                 task.is_onnx_model = entry["is_onnx"]
             else:
                 task.model = entry
-            task.class_names = getattr(task.model, "names", {})
+            task.class_names = apply_class_names_to_detector(
+                task.model,
+                class_names_for_model_record(model),
+            )
             if use_ultralytics() and not getattr(task, "is_onnx_model", False):
                 import torch
 

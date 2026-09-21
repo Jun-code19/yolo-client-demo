@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic RKNPU load snapshot (Web / dashboard)
+
+[Timer]
+OnBootSec=15
+OnUnitActiveSec=5
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target

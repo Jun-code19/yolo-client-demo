@@ -1,30 +1,9 @@
-import axios from 'axios'
-import { ElMessage } from 'element-plus'
+import { createV1Client } from './http'
 
-const apiClient = axios.create({
+const apiClient = createV1Client({
   baseURL: '/api/v1/alert-rules',
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 15000
+  timeout: 15000,
 })
-
-apiClient.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
-
-apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('userInfo')
-      ElMessage.error('登录已过期，请重新登录')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
 
 export const SOURCE_OPTIONS = [
   { value: 'detection_event', label: '检测事件' },

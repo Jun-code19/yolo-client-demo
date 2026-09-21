@@ -6,8 +6,6 @@ from datetime import datetime, timedelta
 import uuid
 import asyncio
 import logging
-import psutil  # 导入psutil库
-
 from src.database import (
     get_db, Device, DetectionEvent, DetectionConfig, EdgeServer, ExternalEvent,
     CrowdAnalysisJob, CrowdAnalysisResult, SmartScheme, SmartEvent,
@@ -639,69 +637,12 @@ def get_dashboard_type_data(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="获取数据大屏检测类型数据失败")
 
 @router.get("/system-status")
-def get_system_status():
-    """获取系统资源状态"""
+def get_dashboard_system_status(db: Session = Depends(get_db)):
+    """获取系统资源状态（与 /api/v1/system/status 同源，含 NPU / 主机信息）"""
     try:
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_count = psutil.cpu_count(logical=False)  # 物理核心数
-        cpu_logical_count = psutil.cpu_count(logical=True) # 逻辑核心数
+        from src.system_status import collect_system_status
 
-        memory = psutil.virtual_memory()
-        memory_total_gb = round(memory.total / (1024 ** 3), 2)
-        memory_used_gb = round(memory.used / (1024 ** 3), 2)
-        memory_percent = memory.percent
-
-        disk = psutil.disk_usage('/')
-        disk_total_gb = round(disk.total / (1024 ** 3), 2)
-        disk_used_gb = round(disk.used / (1024 ** 3), 2)
-        disk_percent = disk.percent
-
-        # 尝试获取GPU信息，如果psutil或相关库不支持，则返回默认值
-        gpu_percent = 0
-        gpu_total_gb = 0
-        gpu_used_gb = 0
-        try:
-            import GPUtil
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                gpu = gpus[0]  # 假设只有一块GPU或者只取第一块
-                gpu_percent = round(gpu.load * 100, 2)
-                gpu_total_gb = round(gpu.memoryTotal / 1024, 2)
-                gpu_used_gb = round(gpu.memoryUsed / 1024, 2)
-        except Exception:
-            pass # 忽略GPU获取失败的情况
-
-        status = "normal"
-        if cpu_percent > 90 or memory_percent > 90 or disk_percent > 90 or gpu_percent > 90:
-            status = "danger"
-        elif cpu_percent > 70 or memory_percent > 80 or disk_percent > 80 or gpu_percent > 70:
-            status = "warning"
-
-        return {
-            "data": {
-                "status": status, # 默认正常，可根据阈值判断
-                "cpu": {
-                    "percent": cpu_percent,
-                    "total": cpu_count,
-                    "used": round(cpu_percent / 100 * cpu_count, 2)  # 根据百分比估算已用核数
-                },
-                "memory": {
-                    "percent": memory_percent,
-                    "total": memory_total_gb,
-                    "used": memory_used_gb
-                },
-                "disk": {
-                    "percent": disk_percent,
-                    "total": disk_total_gb,
-                    "used": disk_used_gb
-                },
-                "gpu": {
-                    "percent": gpu_percent,
-                    "total": gpu_total_gb,
-                    "used": gpu_used_gb
-                }
-            }
-        }
+        return {"data": collect_system_status(db)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取系统资源数据失败: {str(e)}")
 

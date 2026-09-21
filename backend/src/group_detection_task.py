@@ -14,6 +14,8 @@ from typing import List, Optional
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+
+from src.cjk_font import ascii_fallback_text, load_cjk_font
 from src.database import (
     SessionLocal,
     DetectionConfig,
@@ -38,6 +40,7 @@ from src.yolo_task_utils import (
     build_detection_meta,
     load_detection_model,
     predict_detection_frame,
+    class_names_for_model_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,6 +141,7 @@ class GroupDetectionTask:
                 abs_model_path,
                 self.models_type,
                 self.is_gpu,
+                class_names=class_names_for_model_path(abs_model_path),
             )
             self.class_names = getattr(self.model, "names", {})
             return True
@@ -407,25 +411,26 @@ class GroupDetectionTask:
     def _get_count_font(self, size=28):
         if self._count_font is not None:
             return self._count_font
-        font_paths = (
-            "C:/Windows/Fonts/simhei.ttf",
-            "C:/Windows/Fonts/msyh.ttc",
-            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-        )
-        for path in font_paths:
-            try:
-                self._count_font = ImageFont.truetype(path, size)
-                return self._count_font
-            except OSError:
-                continue
-        self._count_font = ImageFont.load_default()
+        self._count_font = load_cjk_font(size)
         return self._count_font
 
     def _draw_total_count_label(self, img, count: int):
         label = f"目标总数: {count}"
+        font = self._get_count_font()
+        if font is None:
+            cv2.putText(
+                img,
+                ascii_fallback_text(label),
+                (12, 32),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2,
+            )
+            return img
         frame_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(frame_pil)
-        draw.text((12, 12), label, font=self._get_count_font(), fill=(0, 255, 0))
+        draw.text((12, 12), label, font=font, fill=(0, 255, 0))
         return cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
     def _draw_detections_list(self, img, detections):

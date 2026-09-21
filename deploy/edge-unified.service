@@ -1,7 +1,7 @@
 [Unit]
 Description=Edge AI Box (serve_unified)
-After=network.target postgresql.service
-Wants=postgresql.service
+After=network.target postgresql.service edge-rknpu-debugfs.service
+Wants=postgresql.service edge-rknpu-debugfs.service
 
 [Service]
 Type=simple
